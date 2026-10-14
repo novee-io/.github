@@ -1,0 +1,1441 @@
+# Appendix: all verified interaction-state findings (2026-10-14)
+
+Companion to [`interaction-states-audit-2026-10.md`](interaction-states-audit-2026-10.md). 234 findings that survived an independent code-level re-check (and, for blocker and high, a user-perception review). Sorted by severity, then family. Paths are relative to `frontend/packages/` in the novee monorepo; line numbers are from the audited commit (`ebc9335`). Family prefixes: F1 buttons/toggles/chips, F2 menus/lists/pickers, F3 navigation/tabs/steppers, F4 rows/tables/trees, F5 cards/options, F6 form controls, F7 webapp sweep, F8 token layer.
+
+Format: id · severity · category · title, then components, evidence, what was observed, and the suggested direction (a one-line hint, superseded by the fix list in the main report).
+
+- **F2-09** · blocker · missing-state · DateRangeFilter trigger and clear × are divs with no keyboard access and no focus state
+  - components: DateRangeFilter trigger, DateRangeFilter clear ×
+  - evidence: `ui/src/novee/components/DateRangeFilter/DateRangeFilter.tsx:58` `<DropdownMenuTrigger asChild>`
+  - evidence: `ui/src/novee/components/DateRangeFilter/DateRangeFilter.tsx:61` `"h-8 flex items-center gap-2 border border-input rounded-md p-2 pr-8 whitespace-nowrap cursor-pointer text-sm hover:border-[var(--btn-filter`
+  - observed: The DropdownMenuTrigger asChild child is a <div> with no role/tabIndex; the clear × is a <div onClick> with no role, tabIndex, onKeyDown, hover or focus styling. Neither can be reached or operated from the keyboard, so no focus state exists at all; hover is border-only (no fill) unlike every other select-family trigger
+  - direction: Render the trigger with selectTriggerVariants on a <button> and reuse SelectTriggerAffordance for the ×.
+- **F4-11** · blocker · missing-state · Clickable DataGrid rows are mouse-only: no tabIndex, keyboard handler or focus style
+  - components: DataGridRow, DataGridDataRow, AssetsV2Table (webapp), IssuesV2Table (webapp)
+  - evidence: `ui/src/novee/components/DataGrid/DataGrid.tsx:1391` `role="grid"`
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridRow.tsx:113` `onClick={row.getToggleExpandedHandler()}`
+  - observed: The row div gets onClick + cursor-pointer but no tabIndex, no onKeyDown and no focus-visible rule; focus-within only tints when a child checkbox/kebab is focused. AssetNameCell/AssessmentNameCell add a hover underline that implies a link but render no focusable element.
+  - direction: Make rows with onRowClick focusable (tabIndex=0, Enter/Space) with the DS focus-visible ring, or render the primary cell as a real link/button.
+- **F4-12** · blocker · missing-state · NotificationItem and dashboard list rows are clickable divs with no keyboard or focus state
+  - components: NotificationItem, Dashboard list rows (webapp)
+  - evidence: `ui/src/novee/components/NotificationItem/NotificationItem.tsx:188` `className="rounded-md opacity-0 transition-opacity group-hover:opacity-100 hover:bg-accent data-[state=open]:bg-accent data-[state=open]:opa`
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:27` `outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]`
+  - observed: Both are plain divs with onClick and a hover tint; no role, tabIndex, keyboard handler or focus-visible. The notification kebab is also opacity-0 until group-hover, so keyboard users see no affordance until it receives focus.
+  - direction: Render the row as a button/link (or add tabIndex + key handling) and reuse the DS focus-visible ring; dashboard rows should share one DS ListRow instead of three copies.
+- **F4-14** · blocker · focus-not-visible-trigger · NetworkTrafficRow focus ring is a pale brand-500 tint that is near-invisible on the light page
+  - components: NetworkTrafficRow
+  - evidence: `/home/user/novee/frontend/packages/ui/src/novee/components/NetworkTrafficPanel/NetworkTrafficRow.tsx:110` `<div className="rounded-md border border-border-primary bg-surface-secondary overflow-hidden">`
+  - evidence: `/home/user/novee/frontend/packages/ui/src/novee/components/NetworkTrafficPanel/NetworkTrafficRow.tsx:97` `"w-full h-[52px] transition-colors cursor-pointer outline-none",`
+  - observed: outline-none removes the native ring and replaces it with ring-brand-500 = #e0d6ff (primitive, unflipped). Against the card's #f9f9fb / page #ffffff that is well under 3:1; it only becomes visible in dark mode.
+  - direction: Replace ring-brand-500 with the DS ring (ring-ring/50 or ring-border-focus) so the ring flips per theme and clears 3:1.
+- **F5-01** · blocker · focus-not-visible-trigger · Roving-tabindex radio cards show no focus indicator on the checked card
+  - components: AssessmentTypeCard, AssetEnvironmentSection (components), AssetEnvironmentSection (onboarding)
+  - evidence: `webapp/src/lib/onboarding/v2/AssessmentTypeCard.tsx:81` `"focus-visible:outline-none focus-visible:border-border-hover",`
+  - evidence: `webapp/src/lib/onboarding/v2/AssessmentTypeCard.tsx:83` `? "border-border-hover bg-surface-hover-subtle"`
+  - observed: The UA outline is removed and focus-visible is expressed only as border-border-hover, but the checked card already has border-border-hover. With roving tabindex the checked card is the one Tab lands on, so keyboard focus produces zero visual change. On unchecked cards the 1px border change is identical to hover.
+  - direction: Replace the border-only focus recipe with the OptionCard ring (focus-visible:ring-2 ring-border-focus ring-offset-2) so focus is visible regardless of checked state.
+- **F5-11** · blocker · aria-mechanism-mismatch · Day-of-week toggles are click-only divs with no role, focus, or aria-pressed
+  - components: AssessmentWizardSummaryView day toggle, ApplicationWizardSummaryView day toggle
+  - evidence: `webapp/src/lib/onboarding/components/ApplicationAssessmentForm/ApplicationWizardSummaryView.tsx:281` `<div`
+  - evidence: `webapp/src/lib/onboarding/components/ApplicationAssessmentForm/ApplicationWizardSummaryView.tsx:291` `"flex items-center justify-center border border-border-hover bg-surface-hover text-emphasis-link rounded-full w-8 h-8 text-sm cursor-pointer`
+  - observed: A <div onClick> with no role=button/tabIndex/aria-pressed/onKeyDown; rest state is painted with bg-surface-hover (the hover token) and border-border-hover, so an unselected day already looks hovered/selected; selected flips to solid brand with no non-colour cue.
+  - direction: Render as <button aria-pressed> using the DS filter/toggle recipe with a neutral rest fill.
+- **F6-04** · blocker · focus-not-visible-trigger · Filled AssetSelectDropdown trigger has no visible keyboard focus (DS read-only rule wins)
+  - components: AssetSelectDropdown, Input
+  - evidence: `webapp/src/lib/common/components/AssetSelectDropdown/AssetSelectDropdown.tsx:110` `readOnly`
+  - evidence: `webapp/src/lib/common/components/AssetSelectDropdown/AssetSelectDropdown.tsx:113` `"pl-8 pr-16 read-only:bg-transparent read-only:hover:bg-accent",`
+  - observed: The selected-asset state renders the DS Input with readOnly. Input's read-only:focus-visible:ring-0 and read-only:focus-visible:border-input carry two pseudo-classes and outrank the consumer's focus-visible:border-ring focus-visible:ring-[1px] (one), so tabbing onto a filled picker paints nothing until Enter/Space open
+  - direction: Render the filled state as a button (like onboarding RepositoryMultiSelect) or set the focus classes with the read-only: prefix so they are not suppressed.
+- **F6-07** · blocker · selected-equals-hover · RichTextEditor toolbar pressed state equals ToolbarIconButton hover with no non-color cue
+  - components: RichTextEditor, ToolbarIconButton, Button (ghost)
+  - evidence: `ui/src/novee/components/ToolbarIconButton/ToolbarIconButton.tsx:27` `primary: "text-icon-primary",`
+  - evidence: `ui/src/novee/components/ToolbarIconButton/ToolbarIconButton.tsx:51` `* A size-8 ghost toolbar button with a tooltip — the shared toolbar affordance`
+  - observed: Bold/Italic/etc. mark 'pressed' with bg-surface-secondary (#f9f9fb / #32333a) via a JS className, which is the exact hex ToolbarIconButton uses for hover; the icon does not change, so a hovered unpressed button and a pressed one are indistinguishable, and a pressed button shows no hover. Button's own ghost pressed reci
+  - direction: Style the toggle via aria-pressed:bg-[var(--btn-ghost-bg-active)] (plus an icon/text tone change) inside ToolbarIconButton so pressed ≠ hover and pressed+hover is defined.
+- **F6-16** · blocker · focus-suppressed · common/RepositoryMultiSelect trigger is a non-focusable div with no hover and an outline-none input
+  - components: RepositoryMultiSelect (common)
+  - evidence: `frontend/packages/webapp/src/lib/common/components/RepositoryMultiSelect.tsx:389` `<div`
+  - evidence: `frontend/packages/webapp/src/lib/common/components/RepositoryMultiSelect.tsx:390` `rounded-md px-3 py-1.5 cursor-text transition-colors ${open ? "ring-1 ring-ring" : ""} ${disabled ? "opacity-50 pointer-events-none" : ""}`}`
+  - observed: The field is a <div onClick> with no tabIndex, no role, no hover and no focus-visible; the only indicator is a 1px outer ring while open. The search input mounts only after open and is outline-none, so even then focus is implied by the container ring, not the input.
+  - direction: Replace with the onboarding implementation (button trigger, aria-haspopup/expanded) or delete this duplicate.
+- **F7-01** · blocker · selected-equals-hover · ChatHistory selected thread is pixel-identical to a hovered thread
+  - components: ChatHistory thread row
+  - evidence: `webapp/src/lib/chat/components/ChatContainer.tsx:64` `const handleThreadSelect = async (threadId: string) => {
+    setIsHistoryOpen(false);`
+  - evidence: `webapp/src/lib/chat/components/ChatContainer.tsx:119` `<ChatHistory
+        onClose={onClose}
+        onBack={() => setIsHistoryOpen(false)}
+        onThreadSelect={handleThreadSelect}`
+  - observed: selected = bg-surface-hover (#f2efff/#513a84), hover = hover:bg-surface-hover (same hex); no weight, check or bar; no aria-current/aria-selected.
+  - direction: Give the selected thread a non-color cue (weight or 2px brand bar) and aria-current, and use a hover tint one step lighter than the selected fill.
+- **F7-12** · blocker · focus-recipe-variance · Seven different focus-visible recipes across owned components
+  - components: ReportKindCard, AuditLogTable link, AssetAuthUsersValue counter, SeverityThresholdSelect, ContactSupportDialog chips, PromptCard, LongTextCell, AssessmentTypeCard, SearchableSelectPopover, FacetCheckb
+  - evidence: `webapp/src/lib/onboarding/v2/AssessmentTypeCard.tsx:81` `"focus-visible:outline-none focus-visible:border-border-hover",`
+  - evidence: `webapp/src/lib/onboarding/v2/AssessmentTypeCard.tsx:83` `? "border-border-hover bg-surface-hover-subtle"`
+  - observed: ring-2 ring-ring solid (7 files, one with ring-offset-1) vs DS ring-[3px] ring-ring/50 (7 files) vs 1px border-only (4 files, identical to hover) vs bg-tint-only (FacetCheckboxRow, identical to hover) vs outline-2.
+  - direction: Standardise on the DS 3px/50% ring (or 2px solid) via a shared focus utility and ban border-only/tint-only focus. · (flagged intentional in code comments)
+- **F7-14** · blocker · focus-suppressed · Menu items cancel the DS highlight so keyboard focus shows nothing or a faint opacity dip
+  - components: issue-action-menu-items DisabledHoverMenuItem, ChipPickerItem (menu host)
+  - evidence: `webapp/src/lib/issues/single-issue/components/issue-action-menu-items.tsx:143` `aria-disabled="true"`
+  - evidence: `webapp/src/lib/issues/single-issue/components/issue-action-menu-items.tsx:147` `className="opacity-50 cursor-default focus:bg-transparent data-[highlighted]:bg-transparent"`
+  - observed: DisabledHoverMenuItem stays in the roving tab order (onSelect preventDefault, not disabled) but highlight is removed and its explanatory content opens only onPointerEnter; ChipPickerItem replaces bg-accent with a 20% opacity dip on the chip.
+  - direction: Keep the accent highlight (or a ring) on focused items and expose the disabled reason on focus as well as pointer enter. · (flagged intentional in code comments)
+- **F7-15** · blocker · missing-state · Recurrence day pills are non-focusable divs with no role, focus or keyboard state
+  - components: ApplicationWizardSummaryView day pills, AssessmentWizardSummaryView day pills
+  - evidence: `webapp/src/lib/onboarding/components/ApplicationAssessmentForm/ApplicationWizardSummaryView.tsx:281` `<div
+                            key={day.value}
+                            onClick={() => {`
+  - evidence: `webapp/src/lib/onboarding/components/ApplicationAssessmentForm/ApplicationWizardSummaryView.tsx:293` `? "bg-action-primary-cta text-text-on-accent hover:bg-action-primary-cta hover:text-text-on-accent"`
+  - observed: <div onClick> with no role/tabIndex/onKeyDown; rest uses the hover token bg-surface-hover; selected pill suppresses its own hover (hover:bg-action-primary-cta = rest); duplicated in two wizards.
+  - direction: Render as Button variant=filter with aria-pressed and let the DS pressed/hover tokens apply.
+- **F1-02** · high · missing-state · KPI is a clickable div with no keyboard, focus, selected or disabled state
+  - components: KPI
+  - evidence: `ui/src/novee/components/KPI/KPI.tsx:57` `<div`
+  - evidence: `ui/src/novee/components/KPI/KPI.tsx:58` `onClick={onClick}`
+  - observed: 11 webapp callsites pass onClick; the element is a <div> with no role/tabIndex, no focus-visible rule, and ignores the full --kpi-bg-active/--kpi-border-active/--kpi-surface-disabled set that theme.css defines for it.
+  - direction: Render a <button> when onClick is present and wire --kpi-border-active/--kpi-bg-active to an aria-pressed state with the shared focus ring.
+- **F1-03** · high · selected-equals-hover · Button pressed fill equals ghost/outline hover fill; pressed border is paler than hover border
+  - components: Button (outline, ghost hover vs ACTIVE_FILTER)
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:11` `"aria-pressed:bg-[var(--btn-filter-bg-active)] aria-pressed:hover:bg-[var(--btn-filter-bg-active)] " +`
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:34` `outline: `border bg-background hover:bg-accent hover:text-accent-foreground hover:border-[var(--btn-secondary-border-hover)] dark:bg-input/3`
+  - observed: --btn-filter-bg-active→surface-selected and bg-accent→surface-hover both resolve to #f2efff light / #513a84 dark. A hovered unselected outline button (bg #f2efff, border #8e55fd) carries a STRONGER border than the pressed one (border-hover-muted #d4c6ff); only the label turning #8149eb separates them.
+  - direction: Split --color-surface-selected from --color-surface-hover (one step apart) and make the pressed border at least as strong as the hover border. · (flagged intentional in code comments)
+- **F1-06** · high · hover-family-mismatch · Icon-button siblings hover purple or grey depending on which one you grab
+  - components: IconButton, NotificationBellButton, RowActionButton, DataGridFilterTrigger, ToolbarIconButton, CopyToClipboardButton
+  - evidence: `ui/src/novee/components/ToolbarIconButton/ToolbarIconButton.tsx:13` `rounded-lg transition-colors hover:bg-surface-secondary focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disab`
+  - evidence: `ui/src/novee/components/ToolbarIconButton/ToolbarIconButton.tsx:51` `* A size-8 ghost toolbar button with a tooltip — the shared toolbar affordance`
+  - observed: IconButton (bg-accent), Bell (bg-accent), RowActionButton (surface-hover-strong), DataGridFilterTrigger (surface-hover) and CopyToClipboard secondary hover PURPLE; ToolbarIconButton and CopyToClipboard ghost hover NEUTRAL GREY (surface-secondary #f9f9fb / #32333a). Same role (32px ghost icon button in a toolbar), two h
+  - direction: Route every icon button through IconButton (or one shared cva) so hover resolves to a single token.
+- **F1-08** · high · missing-state · Button secondary hover is invisible and ignores its own --btn-secondary-* tokens
+  - components: Button secondary
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:35` `secondary: `bg-secondary text-secondary-foreground hover:bg-secondary/80 ${ACTIVE_FILTER}`,`
+  - evidence: `ui/theme.css:396` `--btn-secondary-bg: var(--color-surface-primary);`
+  - observed: bg-secondary resolves to surface-primary (#ffffff / #25272d) — the page colour — so hover:bg-secondary/80 is the page at 80% over the page: no perceivable change. The variant has no border though --btn-secondary-border and --btn-secondary-bg-hover exist for it; SplitButton documents that `outline` is the real Novee Sec
+  - direction: Make `secondary` consume --btn-secondary-border/-bg-hover/-border-hover (or alias it to outline and deprecate one name).
+- **F1-14** · high · selected-no-noncolor-cue · QuickFilter and facet pills signal selection by tint and border colour only
+  - components: QuickFilter, FacetToggleChip, TableFacetFilter, Button active (outline)
+  - evidence: `ui/src/novee/components/QuickFilter/QuickFilter.tsx:97` `? "border-border-hover bg-surface-selected cursor-pointer hover:border-[var(--kpi-border-hover)]"`
+  - evidence: `ui/src/novee/components/QuickFilter/QuickFilter.tsx:100` `: "border-input cursor-pointer hover:border-[var(--kpi-border-hover)]"`
+  - observed: QuickFilter selected = border-hover + surface-selected with label/count unchanged; its hover border is the same hex as the selected border, so bg tint is the only remaining difference. FacetToggleChip's × (the one shape cue) appears only when onClear is passed. Button outline pressed differs from hover by label colour 
+  - direction: Add a consistent non-color cue to every selected toggle (weight, check glyph, or indicator bar).
+- **F1-23** · high · hover-family-mismatch · Button outline hover is purple in light and neutral in dark
+  - components: Button outline, DownloadCsvButton, SplitButton secondary
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:34` `hover:bg-accent hover:text-accent-foreground hover:border-[var(--btn-secondary-border-hover)] dark:bg-input/30 dark:border-input dark:hover:`
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:41` `ghost: `text-accent-foreground hover:bg-accent dark:hover:bg-accent/50 ${ACTIVE_GHOST}`,`
+  - observed: hover:bg-accent (brand-300 #f2efff) is overridden in dark by dark:hover:bg-input/50 (slate-900 #3f4046 at 50%), so the same control changes hue family with the theme; ghost keeps purple in both (dark:hover:bg-accent/50). dark:hover:bg-input/50 and aria-pressed:hover:bg-[…] tie on specificity, so pressed+hover in dark d
+  - direction: Drop the shadcn dark:bg-input overrides and let the semantic tokens carry the dark values.
+- **F1-30** · high · other · ToolbarIconButton invites aria-pressed but styles no pressed state
+  - components: ToolbarIconButton, ExpandCollapseButton
+  - evidence: `ui/src/novee/components/ToolbarIconButton/ToolbarIconButton.tsx:78` `// data-testid / aria-pressed / id for consumers + the E2E suite.`
+  - evidence: `ui/src/novee/components/ToolbarIconButton/ToolbarIconButton.tsx:13` `rounded-lg transition-colors hover:bg-surface-secondary focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disab`
+  - observed: The cva has no aria-pressed: or data-state rule, so a consumer that passes aria-pressed gets a semantic toggle with no visual. No consumer does so today (grep found none).
+  - direction: Either add the family's aria-pressed recipe or remove the invitation from the comment.
+- **F2-01** · high · hover-family-mismatch · Option/menu row hover hue splits three ways across the same role
+  - components: DropdownMenuItem, SelectItem, CommandItem, DataGridFilterOptionList, PopoverActionRow, TimePicker preset, MultiSelectItem, GroupBySelect item, DateFilter preset, DataGridColumnFilter row, DataGridDate
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridDateFilter.tsx:170` `"flex min-h-10 w-full cursor-pointer items-center justify-between rounded-sm px-2 py-1 text-left text-sm outline-none transition-colors hove`
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridColumnManager.tsx:90` `: "hover:bg-surface-secondary",`
+  - observed: Radix/cmdk rows (Dropdown, Select, Command, Combobox, DataGridFilterOptionList, PopoverActionRow, TimePicker, RepositoryMultiSelect, TicketingUserPicker) highlight purple brand-300 #f2efff/#513a84; MultiSelectItem highlights purple brand-200 #f9f8ff/#3c315b; GroupBySelect, DateFilter presets, DataGridColumnFilter, Data
+  - direction: Pick one row-highlight token (bg-accent) and route every list row through CommandItem/DropdownMenuItem/DataGridFilterOptionList instead of local hover classes.
+- **F2-02** · high · duplicate-local-styling · DataGridColumnFilter re-implements DataGridFilterOptionList's row with a different hue
+  - components: DataGridColumnFilter, DataGridFilterOptionList
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridColumnFilter.tsx:29` `const SEARCH_MIN_OPTIONS = 9;`
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridFilterOptionList.tsx:12` `const SEARCH_MIN_OPTIONS = 9;`
+  - observed: Same role=checkbox row markup, same matchesQuery helper and SEARCH_MIN_OPTIONS constant copied; only the hover/focus fill differs (surface-secondary vs accent). PeoplePicker composes the shared list; the column filter does not.
+  - direction: Replace DataGridColumnFilter's inline list with DataGridFilterOptionList so the hue is fixed in one place.
+- **F2-03** · high · selected-equals-hover · TimePicker selected preset is the same fill as a hovered preset
+  - components: TimePicker preset row
+  - evidence: `ui/src/novee/components/TimePicker/TimePicker.tsx:137` `"flex shrink-0 items-center text-sm tabular-nums transition-colors cursor-pointer rounded-sm px-3",`
+  - evidence: `ui/src/novee/components/TimePicker/TimePicker.tsx:139` `index === selectedIndex &&`
+  - observed: Selected = bg-accent (#f2efff/#513a84); hover = bg-accent; the only difference is font-medium on tabular digits. Hovering any unselected row makes it look selected; no check glyph.
+  - direction: Mark the selected preset with a check glyph (SelectedCheck) and leave the fill to the highlight.
+- **F2-05** · high · selected-no-noncolor-cue · GroupBySelect selected row is tint-only and loses its tint on hover
+  - components: GroupBySelect item
+  - evidence: `ui/src/novee/components/GroupBySelect/GroupBySelect.tsx:111` `<button`
+  - evidence: `ui/src/novee/components/GroupBySelect/GroupBySelect.tsx:70` `return `Group: ${option.label}`;`
+  - observed: Selected row = purple tint + purple text, no check glyph, no weight. hover:bg-surface-secondary (a variant utility) out-ranks the plain bg-category-bg-brand, so hovering the selected row repaints it grey; only the text colour remains.
+  - direction: Render rows as CommandItem/DropdownMenuRadioItem with SelectedCheck so selection has a glyph and the highlight is the DS one.
+- **F2-11** · high · hover-family-mismatch · Select-All row and option rows in the same MultiSelect list highlight in different hues
+  - components: MultiSelect Select-All row, SimpleMultiSelect Select-All row, MultiSelectItem
+  - evidence: `ui/src/novee/components/MultiSelect/MultiSelect.tsx:1193` `"data-[selected=true]:bg-muted data-[selected=true]:text-foreground",`
+  - evidence: `ui/src/novee/components/MultiSelect/SimpleMultiSelect.tsx:891` `className="cursor-pointer"`
+  - observed: MultiSelect: Select-All highlighted = bg-muted neutral #f9f9fb/#32333a, option rows = brand-200 #f9f8ff/#3c315b. SimpleMultiSelect: Select-All keeps CommandItem's bg-accent brand-300 #f2efff/#513a84, option rows = brand-200. Arrowing from the first row to the second changes the highlight colour.
+  - direction: Render Select-All through MultiSelectItem (or give all rows the same highlight classes).
+- **F2-21** · high · focus-suppressed · Webapp menu items replace the DS keyboard highlight with transparent fills
+  - components: webapp ChipPickerItem, webapp issue-action-menu-items disabled item
+  - evidence: `webapp/src/lib/issues/components/ChipPickerItem.tsx:25` `className="cursor-pointer px-1 py-1 focus:bg-transparent focus:[&>*]:opacity-80"`
+  - evidence: `webapp/src/lib/issues/components/ChipPickerItem.tsx:35` `className="flex items-start py-1 cursor-pointer hover:opacity-80 transition-opacity"`
+  - observed: ChipPickerItem removes bg-accent and dims children to 80% (a 20% opacity change on a chip is a weak cue); the aria-disabled action item is still a roving-focus target (not `disabled`) but suppresses both focus and data-[highlighted] fills, so arrowing onto it shows nothing.
+  - direction: Keep the DS highlight fill (or a ring) and mark the disabled row with `disabled` so Radix skips it. · (flagged intentional in code comments)
+- **F2-22** · high · duplicate-local-styling · Nine webapp pickers hand-roll option rows instead of using DS items, each with its own hover and no focus style
+  - components: webapp IssueCategorySelect, webapp SeveritySelect, webapp AssetSelectDropdown, webapp SeverityThresholdSelect, webapp SidebarAccountMenu, webapp HelpMenu, webapp PageTopBarProjects, webapp TicketingUs
+  - evidence: `webapp/src/lib/shell/components/app-sidebar/SidebarAccountMenu/SidebarAccountMenu.tsx:48` `"flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-md hover:bg-surface-secondary transition-colors cursor-pointer";`
+  - evidence: `webapp/src/lib/shell/components/top-bar/HelpMenu.tsx:29` `"flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-surface-secondary cursor-pointer text-left";`
+  - observed: Three hover hues (surface-secondary, muted, accent) across rows of identical role; none define focus-visible (UA outline, or none where the row is a non-focusable div as in RepositoryMultiSelect); selected marks vary (F2-15). The DS already offers CommandItem, DropdownMenuItem and DataGridFilterOptionList for these rol
+  - direction: Migrate these rows onto DropdownMenu/Command/DataGridFilterOptionList and delete the local MENU_ITEM_CLASS strings.
+- **F3-01** · high · selected-equals-hover · Sidebar current page fill is byte-identical to hover (and to mousedown and open-hover)
+  - components: SidebarMenuButton, AppSidebarItem, AppSidebarCollapsibleItem
+  - evidence: `ui/src/shadcn/components/ui/sidebar.tsx:483` `hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foregr`
+  - evidence: `ui/theme.css:603` `--color-sidebar-accent: var(--nav-item-bg-hover);`
+  - observed: hover, active: (mousedown), data-[active=true] (current page) and data-[state=open]:hover all resolve to --color-sidebar-accent → surface-hover #f2efff light / #513a84 dark. The only differentiator for the current page is font-medium (plus the webapp's light→solid icon swap). --nav-item-bg-active (surface-tertiary, neu
+  - direction: Bridge --color-sidebar-accent to a hover token and add a sidebar-active token (e.g. --nav-item-bg-active or surface-selected plus an indicator bar), so current ≠ hover ≠ pressed.
+- **F3-05** · high · missing-state · Account-menu trigger hover fill equals the sidebar background in both themes (no perceivable hover)
+  - components: SidebarAccountMenu
+  - evidence: `webapp/src/lib/shell/components/app-sidebar/SidebarAccountMenu/SidebarAccountMenu.tsx:161` `"flex items-center gap-2 w-full overflow-hidden rounded-md py-1.5 hover:bg-surface-secondary transition-colors cursor-pointer",`
+  - evidence: `ui/src/shadcn/components/ui/sidebar.tsx:253` `"bg-sidebar group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col`
+  - observed: The trigger sits in SidebarFooter inside bg-sidebar (nav-side-bg → bg-secondary: #f9f9fb light / #32333a dark). Its hover is bg-surface-secondary: #f9f9fb light / #32333a dark. Identical hex in both themes, so hover changes nothing.
+  - direction: Use the same hover token as the menu items above it (sidebar-accent) or a surface that contrasts with bg-secondary (surface-emphasis).
+- **F3-06** · high · hover-family-mismatch · Nav-list siblings split between purple-tint and neutral-grey hover fills
+  - components: SidebarMenuButton, SidebarAccountMenu, Breadcrumb MenuCrumb, CollapsibleGroupHeader, MarkdownSectionsTab, StepRailButton, ActionGallery, IntegrationSetupDialog, BrowsingTabBar, PaginationLink
+  - evidence: `ui/src/shadcn/components/ui/sidebar.tsx:487` `default: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",`
+  - evidence: `webapp/src/lib/shell/components/app-sidebar/SidebarAccountMenu/SidebarAccountMenu.tsx:48` `"flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-md hover:bg-surface-secondary transition-colors cursor-pointer";`
+  - observed: Purple-tint hover (#f2efff/#513a84): sidebar items, CollapsibleGroupHeader, ActionGallery categories, PaginationLink (ghost). Neutral-grey hover (#f9f9fb/#32333a): account menu + its items, MenuCrumb, MarkdownSectionsTab nav, StepRailButton, IntegrationSetupDialog vertical tabs, BrowsingTabBar buttons. Text-only hover:
+  - direction: Pick one hover family per role (nav/list rows) and route every hand-rolled hover through that token; reserve the other family for a different role (e.g. menus).
+- **F3-07** · high · selected-equals-hover · ActionGallery category rail: selected fill == hover fill (surface-selected == surface-hover)
+  - components: ActionGallery
+  - evidence: `webapp/src/lib/settings/workflows/editor/ActionGallery.tsx:167` `<nav aria-label="Categories" className="flex flex-col gap-0.5 border-r border-border-primary bg-bg-secondary p-2">`
+  - evidence: `webapp/src/lib/settings/workflows/editor/ActionGallery.tsx:172` `aria-pressed={category === g}`
+  - observed: hover:bg-surface-hover and bg-surface-selected both resolve to brand-300 #f2efff (light) and brand-dark-300 #513a84 (dark). The selected row differs from a hovered unselected row only by text-text-secondary (#575465) → text-text-primary (#393547).
+  - direction: Separate --color-surface-selected from --color-surface-hover at the token level (or add a border/weight cue to the selected row) so hover never equals selection.
+- **F3-27** · high · selected-equals-hover · PromptCard selected and hover are the same purple border with no other cue
+  - components: PromptCard (PromptLibraryDialog)
+  - evidence: `webapp/src/lib/prompt-library/PromptLibraryDialog.tsx:335` `? "border-border-hover"`
+  - evidence: `webapp/src/lib/prompt-library/PromptLibraryDialog.tsx:336` `: "border-border-primary hover:border-border-hover",`
+  - observed: Selected: border-border-hover. Unselected hover: border-border-hover. No fill, weight or icon; aria-pressed on a single-select list.
+  - direction: Add the selected fill (surface-selected) or a check indicator and switch to aria-selected/radio semantics.
+- **F4-04** · high · selected-equals-hover · DataGridRow collapses hover, selected, open and focus-within onto one hex
+  - components: DataGridRow
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridRow.tsx:166` `"hover:bg-table-row-hover data-[selected]:bg-table-row-hover",`
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridRow.tsx:167` `"has-[[data-state=open]]:bg-table-row-hover focus-within:bg-table-row-hover",`
+  - observed: All four states resolve to --color-table-row-hover (#f2efff / #513a84). A hovered unselected row is pixel-identical to a selected row except for the checkbox; a selected row shows no hover response; selected+hover is undefined. --color-surface-selected exists and is unused here.
+  - direction: Use --color-surface-selected for selected (and consider a stronger step or left indicator bar) and define selected+hover as surface-hover-strong.
+- **F4-05** · high · missing-state · Server-grouped rows (DataGridDataRow) omit the selected row tint the flat rows have
+  - components: DataGridDataRow, DataGridRow
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridDataRow.tsx:96` `"hover:bg-table-row-hover has-[[data-state=open]]:bg-table-row-hover focus-within:bg-table-row-hover",`
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridDataRow.tsx:83` `data-highlighted={highlighted || undefined}`
+  - observed: DataGridDataRow receives `selected` but sets no data-selected attribute and no background; only the checkbox changes. DataGridRow in the same grid sets data-selected and tints.
+  - direction: Mirror DataGridRow's data-selected attribute and recipe in DataGridDataRow (ideally share one row shell).
+- **F4-07** · high · hover-family-mismatch · Body-row hover spans three purple intensities plus an off-ladder /50 alpha
+  - components: DataGridRow, DataGridDataRow, NetworkTrafficRow, NotificationItem, LogRow (webapp), CollapsibleGroupHeader
+  - evidence: `ui/src/novee/components/NetworkTrafficPanel/NetworkTrafficRow.tsx:110` `<div className="rounded-md border border-border-primary bg-surface-secondary overflow-hidden">`
+  - evidence: `ui/src/novee/components/NetworkTrafficPanel/NetworkTrafficRow.tsx:98` `"focus-visible:ring-2 focus-visible:ring-brand-500",`
+  - observed: DataGrid rows and CollapsibleGroupHeader hover brand-300 (#f2efff/#513a84); NetworkTrafficRow and LogRow hover brand-200 (#f9f8ff/#3c315b); NotificationItem hovers brand-300 at 50% alpha (≈#f9f7ff/≈#3b3159), a value not on the subtle/hover/strong ladder. NetworkTrafficRow's brand-200 hover sits on a surface-secondary (
+  - direction: Pick one ladder step per row role (full-width table rows = surface-hover; card/list rows = surface-hover on a primary surface) and ban alpha modifiers on hover tokens. · (flagged intentional in code comments)
+- **F4-08** · high · hover-family-mismatch · Tree rows hover NEUTRAL and select PURPLE — the inverse of table rows
+  - components: FileExplorer / TreeRow, DataGridRow
+  - evidence: `ui/src/novee/components/FileExplorer/FileExplorer.tsx:650` `aria-selected={isSelected || undefined}`
+  - evidence: `ui/theme.css:461` `--nav-item-bg-hover: var(--color-surface-hover);`
+  - observed: Tree node hover is surface-tertiary (slate-300 #f0f0f3 / #60646c, neutral); its selected state is brand-300 purple. DataGrid rows hover purple. The MatchSummary nav buttons (line 1346) also hover neutral.
+  - direction: Decide one meaning for the brand tint (recommend: selected/current only) and use a neutral step for hover in both trees and tables.
+- **F4-10** · high · hover-family-mismatch · Two group-header implementations in the same grid hover at different purple steps and weights
+  - components: DataGridRow (grouped header), CollapsibleGroupHeader
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridRow.tsx:112` `role="row"`
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridRow.tsx:113` `onClick={row.getToggleExpandedHandler()}`
+  - observed: Client-grouped header: brand-200 hover, font-bold text-secondary, div role=row. Server-grouped header: brand-300 hover, font-semibold text-foreground, <button> on a surface-secondary/95 fill. Both rotate a chevron on expand.
+  - direction: Render the TanStack grouped row through CollapsibleGroupHeader (or share its classes) so there is one group-header recipe.
+- **F4-13** · high · focus-recipe-variance · Three focus-ring recipes across row/cell controls (3px ring/50, 2px pale brand-500, 2px inset solid brand-900) plus browser defaults
+  - components: DataGridHeaderCell, RepositoriesTable (webapp), NetworkTrafficRow, DetailCell, FileExplorer / TreeRow, AssessmentMiniTable (webapp), CollapsibleGroupHeader, SortableHeader
+  - evidence: `/home/user/novee/frontend/packages/ui/src/novee/components/FileExplorer/FileExplorer.tsx:535` `"group flex min-w-full items-center gap-1.5 whitespace-nowrap px-2 py-1 text-left text-sm transition-colors";`
+  - evidence: `/home/user/novee/frontend/packages/ui/src/novee/components/CollapsibleGroupHeader/CollapsibleGroupHeader.tsx:67` `"w-full flex cursor-pointer items-center h-[var(--table-row-height,4rem)] hover:bg-table-row-hover transition-colors bg-surface-primary/90 b`
+  - observed: DS controls: ring-[3px] ring-ring/50 (#8e55fd@50% / #ae92ff@50%). NetworkTrafficRow: 2px #e0d6ff. DetailCell: 2px inset #8e55fd (primitive, same in dark). TreeRow, AssessmentMiniTable cell, CollapsibleGroupHeader, SortableHeader, ExpandableText, MatchSummary buttons, ViewTabs: no focus class at all (browser default out
+  - direction: Export one focus-ring utility (ring-[3px] ring-ring/50 + border-ring) and apply it to every focusable row/cell/tree control.
+- **F4-15** · high · focus-suppressed · NetworkTraffic header sort buttons drop the outline and replace it with a text colour that equals hover and the active column's rest
+  - components: NetworkTrafficPanel / SortableHeaderCell
+  - evidence: `/home/user/novee/frontend/packages/ui/src/novee/components/NetworkTrafficPanel/NetworkTrafficPanel.tsx:732` `"flex min-w-0 cursor-pointer items-center gap-1 text-left outline-none transition-colors hover:text-text-primary focus-visible:text-text-pri`
+  - evidence: `/home/user/novee/frontend/packages/ui/src/novee/components/NetworkTrafficPanel/NetworkTrafficPanel.tsx:733` `isActive && "text-text-primary",`
+  - observed: outline-none with only focus-visible:text-text-primary. The currently-sorted column is already text-text-primary at rest, so focusing it changes nothing; on other columns the focus change is identical to hover.
+  - direction: Add the DS focus-visible ring to these buttons and keep the colour change as a secondary cue.
+- **F5-04** · high · selected-equals-hover · CategoryPill: unpressed hover fill equals the pressed fill
+  - components: CategoryPill (IntegrationsPageClient), Button outline, Button ACTIVE_FILTER
+  - evidence: `webapp/src/lib/settings/integrations/components/IntegrationsPageClient.tsx:27` `variant={active ? "secondary" : "outline"}`
+  - evidence: `webapp/src/lib/settings/integrations/components/IntegrationsPageClient.tsx:30` `aria-pressed={active}`
+  - observed: Unpressed pills hover to bg-accent (#f2efff) with a brand-900 border; pressed pills sit at btn-filter-bg-active (#f2efff) with a brand-600 border and purple text. Same fill, and the hovered border (#8e55fd) is actually stronger than the pressed border (#d4c6ff). The variant swap is redundant with aria-pressed styling.
+  - direction: Drop the variant swap and let aria-pressed drive one filter recipe whose fill is distinct from --color-accent.
+- **F5-08** · high · hover-family-mismatch · Card hover uses three hue families: border-only, neutral-grey fill, purple-tint fill
+  - components: Card interactive, CardLink, OptionCard, TestingCategoryTile, AssessmentTypeCard, FixOptionCard, StepRailButton, MarkdownSectionsTab, IntegrationStepper, IssueRemedationsDetails, GalleryCard, FileUploa
+  - evidence: `webapp/src/lib/issues/single-issue/components/StepRailButton.tsx:29` `: "border-border-primary hover:bg-surface-secondary",`
+  - evidence: `webapp/src/lib/common/components/MarkdownSectionsTab/MarkdownSectionsTab.tsx:146` `: "border-border-primary bg-surface-primary hover:bg-surface-secondary text-text-secondary",`
+  - observed: Border-only (brand-900): Card interactive, CardLink, TestingCategoryTile, AssessmentTypeCard, OptionCard (+shadow/translate). Neutral grey fill (slate-200 #f9f9fb/#32333a): FixOptionCard, StepRailButton, MarkdownSectionsTab, IntegrationStepper, IssueRemedationsDetails. Purple fill: GalleryCard (brand-200), FileUploadDr
+  - direction: Standardise card hover on border-border-hover (optionally + shadow) and reserve fills for selection, matching the ReportKindCard rationale.
+- **F5-12** · high · aria-mechanism-mismatch · StartAssessmentToggleCard hand-rolls a switch with no role=switch/aria-checked and no focus ring
+  - components: StartAssessmentToggleCard, Switch
+  - evidence: `webapp/src/lib/assets/components/StartAssessmentToggleCard.tsx:46` `aria-label="Toggle start assessment with default settings"`
+  - evidence: `webapp/src/lib/assets/components/StartAssessmentToggleCard.tsx:39` `checked ? "border-border-hover ring-1 ring-border-hover" : "border-border",`
+  - observed: The toggle is a plain button with aria-label only; the visual switch is a div. The DS Switch provides role=switch, data-state, focus ring and disabled. The card's checked ring (ring-1 ring-border-hover) is a selection recipe used nowhere else.
+  - direction: Use the DS Switch and the shared selected-card recipe (border-border-hover + bg-surface-selected).
+- **F5-26** · high · selected-mechanism-mismatch · Report filter chip toggles encode unselected as opacity-40 with no hover or focus
+  - components: StatusChipToggle, SeverityChipToggle
+  - evidence: `webapp/src/lib/issues/components/IssueStatusChip.tsx:28` `// A status chip is a display label, never a control — no hover shift
+        // (e.g. when shown as a disabled filter item).
+        intera`
+  - evidence: `webapp/src/lib/reports/components/CustomizeReport/SeverityFilterSection.tsx:40` `<Chip
+        label={SEVERITY_LABELS[severity]}
+        color={SEVERITY_COLORS[severity]}
+      />`
+  - observed: The only aria-pressed toggles in the family whose state is dimming rather than a fill/border; the selected state is the chip's normal rest look, and there is no hover, no selected+hover and no explicit focus ring.
+  - direction: Use the Chip/FacetToggleChip pressed recipe (or Button ACTIVE_FILTER) instead of opacity.
+- **F5-28** · high · hover-family-mismatch · Card hover border alternates between border-hover (brand-900) and border-hover-muted (brand-600)
+  - components: FlowNodeCard, ReportKindCard, GalleryCard, Card interactive, CardLink, OptionCard, TestingCategoryTile, AssessmentTypeCard, IntegrationTile Connect button
+  - evidence: `webapp/src/lib/reports/components/CreateReportModal/ReportKindCard.tsx:65` `// Hover changes the border only. `surface-hover` and `surface-selected`
+        // are both --color-brand-300, so tinting on hover made a h`
+  - evidence: `ui/theme.css:716` `--color-border-hover: var(--color-brand-800);
+  --color-border-focus: var(--color-brand-800);`
+  - observed: Same family (purple border) but two intensities: #8e55fd on OptionCard/Card/CardLink/TestingCategoryTile/AssessmentTypeCard vs #d4c6ff on FlowNodeCard/ReportKindCard/GalleryCard. In dark both collapse to #ae92ff, so the distinction exists only in light. Rest borders also differ (border-primary vs border-secondary on Re
+  - direction: Define 'muted hover for cards that reserve border-hover for selected' as an explicit rule or pick one hover border for all cards. · (flagged intentional in code comments)
+- **F6-05** · high · hover-family-mismatch · Field hover ranges from purple fill to subtle tint to border-only to white to nothing
+  - components: Input, SelectTrigger, SegmentedDateInput, Textarea, OptimizablePromptEditor, OptimizablePromptField, Checkbox, TemplateEditorForm, EditableCellTrigger, RepositoryMultiSelect (both), TemplateTagInput
+  - evidence: `ui/src/shadcn/components/ui/input.tsx:13` `"hover:bg-[var(--input-bg-hover)] hover:border-[var(--input-border-hover)]",`
+  - evidence: `ui/src/shadcn/components/ui/textarea.tsx:11` `"hover:border-[var(--input-border-hover)]",`
+  - observed: Input, SelectTrigger and SegmentedDateInput fill brand-300 (#f2efff/#513a84) and turn the border brand-900; Textarea, the two OptimizablePrompt wrappers and onboarding RepositoryMultiSelect change only the border; Checkbox fills brand-200 with a brand-600 border; Jira TemplateEditorForm fills brand-200 and suppresses t
+  - direction: Decide one field-hover recipe (fill or border) and apply it to Textarea, the prompt wrappers, the tag containers and both repository triggers; keep intentional deviations to tokens, not per-consumer o · (flagged intentional in code comments)
+- **F6-10** · high · disabled-variance · Disabled rendered as tokens, opacity-50, opacity-30 or a local override depending on the control
+  - components: Input, Checkbox, Textarea, RadioGroupItem, Switch, Slider, SelectTrigger, TemplateEditorForm, ScanCustomeHeadersHeaderField, SegmentedDateInput
+  - evidence: `webapp/src/lib/integrations/jira/wizard/TemplateEditorForm.tsx:401` `<SelectTrigger className={`${SELECT_CONTROL} hover:bg-surface-hover-subtle hover:border-input focus-visible:ring-0 data-[state=open]:ring-0``
+  - evidence: `webapp/src/lib/integrations/jira/wizard/TemplateEditorForm.tsx:391` `<div className="grid grid-cols-2 gap-4">`
+  - observed: Input and Checkbox use dedicated disabled tokens (grey fill + text-disabled, opacity 100); Textarea, Radio, Switch, Slider, SelectTrigger, ToolbarIconButton use opacity-50; the Jira issue-type SelectTrigger locally restores the Input recipe (disabled:bg-(--input-bg-disabled) disabled:opacity-100) while the Project sele
+  - direction: Give every control a token-based disabled recipe (--input-bg-disabled / --input-surface-disabled or the checkbox pair) and remove opacity-50 from Textarea, Select, Radio, Switch and the consumer overr
+- **F6-15** · high · focus-suppressed · TemplateTagInput suppresses the inner input ring with no focus-within replacement on its box
+  - components: TemplateTagInput, TagInput, ScanCustomeHeadersHeaderField
+  - evidence: `frontend/packages/webapp/src/lib/integrations/jira/wizard/TemplateTagInput.tsx:48` `"h-7 min-w-16 flex-1 border-0 px-1 shadow-none focus-visible:ring-0",`
+  - evidence: `frontend/packages/webapp/src/lib/integrations/jira/wizard/TemplateTagInput.tsx:46` `inlineTagsContainer: `${CONTROL} flex-nowrap items-center gap-1 overflow-x-auto rounded-md border border-input bg-transparent px-2 py-0 shad`
+  - observed: Both consumers zero the emblor input's ring; ScanCustomeHeadersHeaderField restores a focus-within ring on the container, TemplateTagInput's container (CONTROL = w-full h-10 + border) has no focus-within, hover or invalid class. The DS TagInput wrapper itself ships 'border-0 p-0' with no focus treatment, forcing each c
+  - direction: Give @novee/ui TagInput a boxed variant with the field hover/focus-within recipe so neither consumer re-skins it.
+- **F6-18** · high · hover-family-mismatch · Option rows: purple keyboard highlight vs purple hover vs neutral hover across pickers
+  - components: AssetSelectDropdown, RepositoryMultiSelect (common), RepositoryMultiSelect (onboarding), SelectItem
+  - evidence: `frontend/packages/webapp/src/lib/common/components/AssetSelectDropdown/AssetSelectDropdown.tsx:182` `<button`
+  - evidence: `frontend/packages/webapp/src/lib/common/components/AssetSelectDropdown/AssetSelectDropdown.tsx:187` `"flex items-center gap-2 mx-2 p-2 text-left hover:bg-muted transition-colors cursor-pointer rounded-sm",`
+  - observed: DS SelectItem and CommandItem highlight with bg-accent (#f2efff) driven by focus/data-selected (keyboard-aware); common RepositoryMultiSelect uses hover:bg-accent only (no keyboard highlight); AssetSelectDropdown uses hover:bg-muted (#f9f9fb neutral) on plain <button>s with no role=option / aria-selected.
+  - direction: Build both consumer lists on Command/SelectItem so highlight colour and mechanism come from the DS.
+- **F6-24** · high · hover-family-mismatch · In-field icon buttons hover purple, grey, white-alpha or text-only
+  - components: EditableTitle, ToolbarIconButton, Search, SelectTriggerAffordance, SegmentedDateInput, TagInput, ScanCustomeHeadersHeaderField, AssetSelectDropdown
+  - evidence: `ui/src/novee/components/ToolbarIconButton/ToolbarIconButton.tsx:13` `"flex shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-surface-secondary focus-visible:ring-[3px]`
+  - evidence: `ui/src/novee/components/ToolbarIconButton/ToolbarIconButton.tsx:51` `* A size-8 ghost toolbar button with a tooltip — the shared toolbar affordance`
+  - observed: EditableTitle pencil fills surface-hover (purple); ToolbarIconButton fills surface-secondary (grey); Search clear, select clear ×, AssetSelectDropdown clear, SegmentedDateInput steppers and chip-remove buttons only darken the glyph; TagInput remove fills white/20; the ScanCustomeHeaders trash is a ghost Button so it ge
+  - direction: Route all in-field icon buttons through IconButton/ToolbarIconButton with one hover token.
+- **F6-35** · high · token-misuse · text-muted-foreground is undefined in theme.css, so placeholders and remove buttons render in body colour
+  - components: RepositoryMultiSelect (common), RepositoryMultiSelect (onboarding)
+  - evidence: `webapp/src/lib/common/components/RepositoryMultiSelect.tsx:431` `<span className="block truncate text-sm text-muted-foreground">`
+  - evidence: `webapp/src/lib/common/components/RepositoryMultiSelect.tsx:422` `className="w-full min-w-[80px] bg-transparent outline-none text-sm placeholder:text-muted-foreground"`
+  - observed: theme.css defines --color-muted but no --color-muted-foreground (grep returns nothing), so Tailwind v4 emits no CSS for text-muted-foreground: the 'Search repositories...' placeholder reads as a typed value and the chip × buttons sit at full text strength with no hover delta.
+  - direction: Replace with text-text-tertiary (and consider bridging --color-muted-foreground so shadcn copies fail loudly).
+- **F7-06** · high · hover-family-mismatch · Menu/list rows hover neutral grey in webapp but purple in the DS and in other webapp lists
+  - components: PageTopBarProjects rows, HelpMenu rows, QuickAI suggestions, SeverityThresholdSelect rows, SeveritySelect rows, IssueCategorySelect rows, TestCaseIssuesFoundPopover rows, FacetCheckboxRow, ChatHistory
+  - evidence: `ui/theme.css:252` `/* Brand hover triad, subtle → strong. Anything that tints on hover picks one of
+     these rather than a raw brand-200/300/400, which are n`
+  - evidence: `ui/theme.css:451` `--menu-item-bg-hover: var(--color-action-secondary-cta-hover);`
+  - observed: Owned-file tally: hover:bg-surface-secondary 32, hover:bg-muted 5, hover:bg-surface-emphasis 2 (all neutral) vs hover:bg-surface-hover 9, -subtle 9, -strong 2, bg-accent 7, bg-table-row-hover 3 (purple). Rows in popovers/menus are split roughly half and half.
+  - direction: Pick one row-hover token (menu-item-bg-hover or surface-hover-subtle) and route hand-rolled rows through DropdownMenuItem/CommandItem.
+- **F7-18** · high · aria-mechanism-mismatch · Visually selected items carry no ARIA selection state
+  - components: ChatHistory rows, IssueMitigationDetails steps, IssueRemedationsDetails steps, PageTopBarProjects rows, SeveritySelect rows, IssueCategorySelect rows, AssessmentInitialStep cards, TicketDestinationPic
+  - evidence: `webapp/src/lib/shell/components/top-bar/PageTopBarProjects.tsx:140` `className={projectId === project.id ? "font-medium" : ""}`
+  - evidence: `webapp/src/lib/chat/components/ChatHistory.tsx:150` `className={`group flex items-center gap-2 w-full px-2 rounded text-left cursor-pointer transition-colors hover:bg-surface-hover ${
+         `
+  - observed: Selection is expressed by className only (bg/weight/check icon); no aria-selected, aria-checked, aria-current or role=option. TicketDestinationPicker uses role=menuitem + sr-only text instead of aria-checked on a menuitemradio.
+  - direction: Add aria-current/aria-selected (or role=menuitemradio + aria-checked) wherever a selected class is toggled.
+- **F7-24** · high · hardcoded-color · Primitive/frozen colours in state styling (QuickAI open ring, AttackChainNode ring, slate-850 text, border-white)
+  - components: QuickAI input, AttackChainNode, SearchableSelectPopover, NewAssetButton
+  - evidence: `webapp/src/lib/quick-ai/components/QuickAI.tsx:88` `? "shadow-[0_0_0_2px_theme(colors.brand.600)]"`
+  - evidence: `webapp/src/lib/quick-ai/components/QuickAI.tsx:84` `readOnly={!!onInputClick}`
+  - observed: QuickAI open ring is brand-600 #d4c6ff in both themes (paler than its own hover ring #8149eb and than --color-ring); AttackChainNode pressed ring brand-700 #c3b0ff frozen; slate-850 #60646c secondary text frozen; border-white/25 flagged frozen-stepless by scan-colors.
+  - direction: Use --color-ring (or add a muted ring token) for open/selected rings and text-text-tertiary for secondary text. · (flagged intentional in code comments)
+- **F8-01** · high · selected-equals-hover · --color-surface-selected is byte-identical to --color-surface-hover in light AND dark
+  - components: --color-surface-selected, --color-surface-hover, --color-brand-300, --color-brand-dark-300
+  - evidence: `ui/theme.css:253` `--color-surface-hover: var(--color-brand-300);`
+  - evidence: `ui/theme.css:258` `--color-surface-selected: var(--color-brand-300);`
+  - observed: Both semantic tokens resolve to #f2efff (light) and #513a84 (dark). The token layer offers no companion selected foreground, border or indicator token, so any consumer that uses bg-surface-selected for a persistent selection and the system hover for hover renders them identically.
+  - direction: Give selected its own step (e.g. brand-400 / brand-dark-400 or a border+weight cue) and add a selected-hover token so hover never collapses onto selection.
+- **F8-03** · high · selected-equals-hover · Sidebar current item is bound to the HOVER token; the neutral --nav-item-bg-active is never consumed
+  - components: --color-sidebar-accent, --nav-item-bg-hover, --nav-item-bg-active, --sidebar-accent
+  - evidence: `ui/theme.css:461` `--nav-item-bg-hover: var(--color-surface-hover);`
+  - evidence: `ui/theme.css:462` `--nav-item-bg-active: var(--color-surface-tertiary);`
+  - observed: shadcn's sidebar uses `sidebar-accent` for hover, mousedown (active:) and current (data-[active=true]); the bridge points it at --nav-item-bg-hover, so the current page is purple brand-300 while theme.css's intended current fill (--nav-item-bg-active = neutral slate-300/850) has 0 consumers in ui or webapp. The only no
+  - direction: Add a --color-sidebar-active bridge bound to --nav-item-bg-active (or a selected token) and move data-[active=true] styling onto it.
+- **F8-04** · high · hover-family-mismatch · Three hover hue families coexist in the token layer with no documented rule for which role gets which
+  - components: --color-surface-hover, --btn-ghost-bg-hover, --nav-item-bg-hover, --table-row-bg-hover, --input-bg-hover, --btn-filter-bg-hover, --table-head-column-bg-hover, --menu-item-bg-hover, --tabs-browsing-ite
+  - evidence: `ui/theme.css:250` `/* Brand hover triad, subtle → strong. Anything that tints on hover picks one of`
+  - evidence: `ui/theme.css:251` `these rather than a raw brand-200/300/400, which are near-white tints and`
+  - observed: Purple: surface-hover, ghost, secondary button, nav item, table row, input, kpi, tabs-nav (8 tokens → #f2efff/#513a84). Neutral: filter button, column header, menu item, browsing tab, muted (5 tokens → slate-200/300/400). Solid: primary/destructive CTA darken. Usage counts: ui purple 46 vs neutral 18; webapp purple 71 
+  - direction: Write the rule down in theme.css (e.g. 'whole-row/whole-tile targets tint purple; dense list/menu items and icon buttons go neutral') and rebind the tokens that violate it.
+- **F8-05** · high · hover-family-mismatch · shadcn bridge repoints `accent` to the brand tint and `muted` to a neutral, so shadcn-derived menus hover purple while --menu-item-bg-hover (neutral) is dead
+  - components: --color-accent, --accent, --btn-ghost-bg-hover, --color-muted, --menu-item-bg-hover, --tabs-browsing-bg
+  - evidence: `ui/theme.css:583` `--color-muted: var(--tabs-browsing-bg);`
+  - evidence: `ui/theme.css:584` `--color-accent: var(--btn-ghost-bg-hover);`
+  - observed: shadcn upstream uses `accent` for menu/command/select item hover and `muted` for toggle hover; here accent = purple brand-300 and muted = neutral slate-200. DropdownMenu, Select, Command items hover purple; Toggle default hovers neutral but Toggle outline hovers purple (same component, two families). --menu-item-bg-hov
+  - direction: Decide one menu-item hover and bind both --color-accent and --menu-item-bg-hover to it (or make shadcn items consume --menu-item-bg-hover).
+- **F8-10** · high · focus-recipe-variance · One --color-ring token but at least nine focus recipes: hues brand-900/800/700/500 and alpha 50%/30%, widths 1-4px, offsets 0/1/2/inset
+  - components: --color-ring, --ring, --color-border-focus, --input-border-active, --color-brand-900, --color-brand-700, --color-brand-500
+  - evidence: `webapp/src/lib/issues/single-issue/components/AttackChainStepCard.tsx:41` `isSelected && "ring-2 ring-brand-700",`
+  - evidence: `ui/src/novee/components/NetworkTrafficPanel/NetworkTrafficRow.tsx:112` `role="button"`
+  - observed: Counts (ui+webapp): ring-ring 55, ring-border-focus 11, ring-[var(--input-border-active)] 6, ring-brand-900 3, ring-brand-700 2, ring-brand-500 1, outline-ring 3. ring-brand-* are frozen primitives (no dark flip; brand-900 is 3.4:1 on the dark page per theme.css 753-754). ring-brand-500 (#e0d6ff) is ~1.3:1 on white — e
+  - direction: Define --focus-ring-* tokens (color, width, offset) and a single utility/class; have scan-colors error (not warn) on ring-brand-*.
+- **F1-01** · medium · missing-state · Toggle default variant has no visible ON state
+  - components: Toggle, ToggleGroupItem
+  - evidence: `ui/src/shadcn/components/ui/toggle.tsx:10` `hover:bg-muted hover:text-text-tertiary disabled:pointer-events-none disabled:opacity-50 data-[state=on]:border-action-primary-cta`
+  - evidence: `ui/src/shadcn/components/ui/toggle.tsx:14` `default: "bg-transparent",`
+  - observed: The only data-[state=on] rule sets border-color, but the default variant declares no border width (preflight border-width:0), so pressing the toggle changes nothing visually; upstream shadcn's data-[state=on]:bg-accent text-accent-foreground was removed.
+  - direction: Give data-[state=on] the same selected recipe the family settles on (fill + label + non-color cue), or delete Toggle/ToggleGroup in favour of SegmentedControl.
+- **F1-04** · medium · pressed-vs-selected-conflation · Two aria-pressed recipes in one Button: purple tint vs neutral grey, and ghost pressed is greyer than ghost hover
+  - components: Button (ACTIVE_FILTER vs ACTIVE_GHOST)
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:15` `// The ghost family keeps its own identity when pressed — `--btn-ghost-bg-active``
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:18` `"aria-pressed:bg-[var(--btn-ghost-bg-active)] aria-pressed:hover:bg-[var(--btn-ghost-bg-active)] " +`
+  - observed: ACTIVE_FILTER paints brand-300 + brand label; ACTIVE_GHOST paints surface-emphasis (slate-300 #f0f0f3 / #60646c) with ink label. Ghost hover is purple (#f2efff) while ghost pressed is grey, so the persistent state is a different hue family from the transient one and reads weaker.
+  - direction: Pick one selected hue family for toggle buttons and repoint --btn-ghost-bg-active at it (keeping a non-color cue). · (flagged intentional in code comments)
+- **F1-05** · medium · selected-mechanism-mismatch · Primary and destructive buttons lose their solid fill when active
+  - components: Button default, Button destructive, Button link
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:32` `default: `bg-primary text-primary-foreground hover:bg-[var(--btn-primary-bg-hover)] disabled:bg-[var(--btn-primary-bg-disabled)] disabled:op`
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:33` `focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 disabled:bg-[var(--btn-destructive-bg-disabled)] disabled:opacity-1`
+  - observed: With active={true} a solid brand (#8149eb) or red (#e32128) CTA becomes a pale purple tint (#f2efff) with purple text and a brand-600 border; destructive loses red entirely, link loses its link colour and gains a grey chip.
+  - direction: Add --btn-primary-bg-active and --btn-destructive-bg-active (darker steps of their own hue) and apply ACTIVE_FILTER only to outline/secondary. · (flagged intentional in code comments)
+- **F1-07** · medium · hover-family-mismatch · Toggle default hovers grey and dims its label; Toggle outline and Button ghost hover purple
+  - components: Toggle default, Toggle outline, Button ghost
+  - evidence: `ui/src/shadcn/components/ui/toggle.tsx:10` `hover:bg-muted hover:text-text-tertiary disabled:pointer-events-none disabled:opacity-50 data-[state=on]:border-action-primary-cta`
+  - evidence: `ui/src/shadcn/components/ui/toggle.tsx:16` `"border border-input bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground",`
+  - observed: Default: bg-muted (#f9f9fb / #32333a, neutral) and text-tertiary (#6e6b79, lighter than rest). Outline: bg-accent (#f2efff / #513a84, purple) with accent-foreground. Hover LOWERS label contrast on the default variant.
+  - direction: Use the same hover token for both Toggle variants and never lighten text on hover.
+- **F1-09** · medium · selected-mechanism-mismatch · 'Selected filter' is encoded five ways with four different looks
+  - components: Button active, FacetToggleChip, QuickFilter, SegmentedControl neutral, Toggle
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:13` `"aria-pressed:border aria-pressed:border-[var(--btn-filter-border-active)] aria-pressed:hover:border-[var(--btn-filter-border-active)]";`
+  - evidence: `ui/src/novee/styles/facet-pill.ts:23` `? "border-border-hover bg-surface-selected text-text-primary"`
+  - observed: Mechanisms: aria-pressed via `active` prop (Button), `active` prop + aria-pressed on an inner button (FacetToggleChip), `selected` prop + aria-pressed on a div (QuickFilter), Radix data-[state=on] (SegmentedControl, Toggle), bare `active` prop (DataGridFilterTrigger). Fills: brand-300 / brand-300 / brand-300 / brand-20
+  - direction: Define one `selected` token triplet (bg/border/text) plus one non-color cue and have every toggle-like control consume it through a shared cva. · (flagged intentional in code comments)
+- **F1-12** · medium · selected-equals-hover · Hovering a selected facet pill fades it toward unselected; open state is paler than active
+  - components: FacetToggleChip, TableFacetFilter
+  - evidence: `ui/src/novee/styles/facet-pill.ts:21` `// dark page. Light is unchanged bar the open border, one step paler.`
+  - evidence: `ui/src/novee/styles/facet-pill.ts:23` `? "border-border-hover bg-surface-selected text-text-primary"`
+  - observed: hover:bg-surface-hover-subtle is applied regardless of `active`, so active+hover drops from brand-300 #f2efff to brand-200 #f9f8ff (dark #513a84 → #3c315b). Opening the popover also swaps the brand-900 active border for brand-600 (#d4c6ff) and the fill for brand-200.
+  - direction: Scope hover to the inactive branch and make open at least as strong as active. · (flagged intentional in code comments)
+- **F1-13** · medium · hover-family-mismatch · Purple hover ladder used at three intensities for same-role controls
+  - components: FacetToggleChip, IconButton, KPI, DataGridFilterTrigger, RowActionButton
+  - evidence: `ui/src/novee/styles/facet-pill.ts:27` `: "cursor-pointer hover:bg-surface-hover-subtle",`
+  - evidence: `ui/src/novee/components/RowActionButton/RowActionButton.tsx:10` `States: idle = surface bg + subtle border; hover = surface-hover-strong (one step past the row's own surface-hover, so the button stands out`
+  - observed: brand-200 (#f9f8ff) on facet pills, brand-300 (#f2efff) on ghost/bell/KPI/filter trigger, brand-400 (#eae3ff) on RowActionButton — all for 'hovering a clickable chip/button'.
+  - direction: Reserve subtle/strong for nested-on-hovered-surface cases and use surface-hover for standalone controls. · (flagged intentional in code comments)
+- **F1-15** · medium · focus-recipe-variance · Five different focus recipes across button-like controls
+  - components: Button, ToolbarIconButton, SegmentedControl, RowActionButton, TableFacetFilter option
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:27` `outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]`
+  - evidence: `ui/src/novee/components/SegmentedControl/SegmentedControl.tsx:122` `focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0",`
+  - observed: 3px ring @50% + border-ring (Button/Toggle/Badge); 3px ring @50% without border (ToolbarIconButton, facet pill, filter trigger, filter-chip counter); 2px ring @100% offset-0 (SegmentedControl); ring + bg fill (RowActionButton); bg fill only, no ring (TableFacetFilter rows). Destructive adds a red ring over the purple b
+  - direction: Extract one focus-ring utility (and the forced-colors-safe outline-hidden) and apply it everywhere.
+- **F1-16** · medium · focus-recipe-variance · Several reachable controls fall back to the browser's default focus outline
+  - components: CopyToClipboardButton, NotificationBellButton, QuickFilter, DataGridFilterChips buttons
+  - evidence: `ui/src/novee/components/CopyToClipboardButton/CopyToClipboardButton.tsx:83` `"rounded-md transition-colors cursor-pointer",`
+  - evidence: `ui/src/novee/components/NotificationBellButton/NotificationBellButton.tsx:11` `"relative flex items-center justify-center rounded-md hover:bg-accent transition-colors cursor-pointer",`
+  - observed: No focus-visible class and no outline-none, so the UA :focus-visible outline (blue/black auto) renders instead of the brand ring. Not suppressed, so not a blocker, but visually foreign.
+  - direction: Apply the shared focus utility to every hand-rolled <button> / role=button.
+- **F1-17** · medium · open-state-variance · Menu/popover triggers show four different open states, one of them faked with aria-pressed
+  - components: RowActionButton, TableFacetFilter, DataGridFilterTrigger, SplitButton, DownloadCsvButton, Button (ScenarioSwitcherPanel)
+  - evidence: `ui/src/novee/components/RowActionButton/RowActionButton.tsx:37` `"data-[state=open]:border-border-hover data-[state=open]:bg-surface-hover-strong",`
+  - evidence: `ui/src/novee/styles/facet-pill.ts:30` `"has-data-[state=open]:border-border-hover-muted has-data-[state=open]:bg-surface-hover-subtle",`
+  - observed: RowActionButton: brand-400 fill + brand-900 border (same fill as its hover). Facet pill: brand-200 fill + brand-600 border (paler than active). DataGridFilterTrigger: width/opacity only. SplitButton chevron, DownloadCsvButton menu trigger and plain Button: no open style, so a consumer passes active={open} to borrow the
+  - direction: Add a data-[state=open] rule to Button itself (distinct from aria-pressed) so every Radix trigger inherits one open look. · (flagged intentional in code comments)
+- **F1-18** · medium · duplicate-local-styling · Webapp hand-rolls the facet-pill selected recipe and mixes aria-current with aria-pressed
+  - components: StepRailButton, MarkdownSectionsTab, PromptLibraryDialog, TicketDestinationPicker, AttackChainNode
+  - evidence: `webapp/src/lib/issues/single-issue/components/StepRailButton.tsx:24` `aria-current={isActive ? "true" : undefined}`
+  - evidence: `webapp/src/lib/issues/single-issue/components/StepRailButton.tsx:28` `? "border-border-hover bg-surface-selected"`
+  - observed: Four consumers re-type `border-border-hover bg-surface-selected` on raw <button>/<div>s with hover:bg-surface-secondary (grey) instead of the DS purple hover; StepRail/MarkdownSectionsTab use aria-current for a selection while PromptLibrary/AttackChain use aria-pressed; TicketDestinationPicker overlays bg-surface-selec
+  - direction: Export the selected recipe (or a Selectable cva) from @novee/ui and decide current vs pressed per role.
+- **F1-19** · medium · disabled-variance · Disabled is expressed six different ways
+  - components: Button, ToolbarIconButton, facet-pill, QuickFilter, SegmentedControl, SplitButton
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:27` `disabled:pointer-events-none disabled:opacity-50`
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:31` `// The theme's disabled fill, as destructive does: fading lets whatever sits behind show through.`
+  - observed: Token fill + opacity-100 (primary/destructive); opacity-50 (outline/secondary/Toggle/Segmented/Toolbar/facet pill); inline-style colour token with opacity 1 (ghost); label→text-tertiary + slate avatar + aria-disabled with no opacity (QuickFilter); hand-rolled opacity on asChild (SplitButton); nothing (KPI, Bell, Copy).
+  - direction: Standardise on token-based disabled colours (text-disabled / surface-disabled) and drop the opacity path. · (flagged intentional in code comments)
+- **F1-20** · medium · token-misuse · Hover tokens used as selected and static fills; KPI token used by QuickFilter but not KPI
+  - components: SegmentedControl, QuickFilter, KPI
+  - evidence: `ui/src/novee/components/SegmentedControl/SegmentedControl.tsx:145` `data-[state=on]:bg-surface-hover-subtle data-[state=on]:text-category-surface-brand data-[state=on]:font-medium data-[state=on]:border-borde`
+  - evidence: `ui/src/novee/components/SegmentedControl/SegmentedControl.tsx:141` `// Brand-muted selection — the active segment fills with the lightest`
+  - observed: SegmentedControl's selected fill is --color-surface-hover-subtle (a hover token, brand-200); QuickFilter paints its brand avatar with --color-surface-hover-strong as a resting fill; QuickFilter's hover border reads --kpi-border-hover while KPI.tsx uses none of the --kpi-* tokens.
+ · (flagged intentional in code comments)
+- **F1-21** · medium · dark-mode-collapse · Pressed border and hover border become the same hex in dark only
+  - components: Button ACTIVE_FILTER, facet-pill open, QuickFilter
+  - evidence: `ui/theme.css:433` `--btn-filter-border-active: var(--color-border-hover-muted);`
+  - evidence: `ui/theme.css:721` `--color-border-hover-muted: var(--color-brand-800);`
+  - observed: Light: pressed border brand-600 #d4c6ff vs hover border brand-900 #8e55fd (distinct, pressed paler). Dark: both brand-800 #ae92ff. The facet pill's open border (hover-muted) likewise collapses onto its active border (hover) in dark.
+  - direction: Give dark its own muted step (e.g. brand-700) so hover/active/open keep three distinguishable edges. · (flagged intentional in code comments)
+- **F1-22** · medium · dark-mode-collapse · Disabled primary button in dark equals the selected/hover fill
+  - components: Button default, Button active, facet-pill, QuickFilter
+  - evidence: `ui/theme.css:728` `--color-action-primary-cta-disabled: var(--color-brand-dark-300);`
+  - evidence: `ui/theme.css:687` `--color-surface-selected: var(--color-brand-dark-300);`
+  - observed: In dark, --btn-primary-bg-disabled, --color-surface-selected and --color-surface-hover all resolve to brand-dark-300 #513a84; in light they are #c3b0ff vs #f2efff. A disabled primary CTA shares its fill with a selected filter pill and a hovered ghost button.
+  - direction: Point the dark disabled CTA at a desaturated/grey step rather than the selected tint. · (flagged intentional in code comments)
+- **F1-24** · medium · aria-mechanism-mismatch · Chip is interactive by default: hover shift on labels with no role or keyboard access
+  - components: Chip
+  - evidence: `ui/src/novee/components/Chip/Chip.tsx:56` `interactive = true,`
+  - evidence: `ui/src/novee/components/Chip/Chip.tsx:21` `// Two color maps: the interactive one carries hover bg/border shifts, the`
+  - observed: The default variant map carries hover bg/border shifts on a <div> with no role, tabIndex or focus style; 35+ webapp callsites pass interactive={false} to switch it off, and the ones that keep the hover have no keyboard equivalent.
+  - direction: Default interactive to false and render a <button> with the shared focus ring when it is true. · (flagged intentional in code comments)
+- **F1-25** · medium · missing-state · SegmentedControl segments have no hover feedback and no pointer cursor
+  - components: SegmentedControlItem
+  - evidence: `ui/src/novee/components/SegmentedControl/SegmentedControl.tsx:122` `data-[state=off]:hover:bg-transparent disabled:opacity-50 disabled:pointer-events-none focus-visible:z-10 focus-visible:ring-2 focus-visible`
+  - evidence: `ui/src/shadcn/components/ui/toggle.tsx:10` `"inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium hover:bg-muted hover:text-text-tertiary`
+  - observed: Off segments explicitly force hover:bg-transparent and the base string has no cursor-pointer; the only hover response is none.
+  - direction: Add the family hover tint to data-[state=off] segments and cursor-pointer.
+- **F1-26** · medium · focus-recipe-variance · TableFacetFilter option rows show focus with the hover fill and no ring
+  - components: TableFacetFilter option row
+  - evidence: `ui/src/novee/components/TableFacetFilter/TableFacetFilter.tsx:198` `className="flex min-h-10 cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-left outline-none transition-colors hover:bg-surface-se`
+  - evidence: `ui/src/shadcn/components/ui/dropdown-menu.tsx:102` `"focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hi`
+  - observed: focus-visible and hover both paint surface-secondary (#f9f9fb / #32333a); outline-none removes the UA ring, so a keyboard-focused row is indistinguishable from a row the mouse rests on.
+  - direction: Use the shared ring (or ring + fill) for focus-visible so it differs from hover.
+- **F1-27** · medium · duplicate-local-styling · Four icon buttons hand-roll their own <button> instead of IconButton
+  - components: ToolbarIconButton, CopyToClipboardButton, NotificationBellButton, DataGridFilterTrigger
+  - evidence: `ui/src/novee/components/ToolbarIconButton/ToolbarIconButton.tsx:13` `"flex shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-surface-secondary focus-visible:ring-[3px] f`
+  - evidence: `ui/src/novee/components/ToolbarIconButton/ToolbarIconButton.tsx:51` ` * A size-8 ghost toolbar button with a tooltip — the shared toolbar affordance`
+  - observed: Each re-declares hover/focus/disabled from scratch, which is where the grey-vs-purple hover (F1-06), missing focus rings (F1-16) and absent disabled states come from; IconButton already provides the Button recipe.
+  - direction: Compose them from IconButton (variant ghost/outline) and keep only the tooltip/badge logic local.
+- **F1-33** · medium · focus-recipe-variance · Destructive focus layers a red ring over the purple border-ring
+  - components: Button destructive, Badge destructive
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:27` `outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]`
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:33` `focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 disabled:bg-[var(--btn-destructive-bg-disabled)] disabled:opacity-1`
+  - observed: The variant overrides ring colour to red at 20%/40% but the base focus-visible:border-ring (brand purple) still applies, producing a two-hue focus indicator; the 20% red ring is also far fainter than the 50% purple ring on every other button.
+  - direction: Use one ring colour/opacity for all buttons, or override border-ring too.
+- **F2-04** · medium · selected-equals-hover · Grey pickers reuse bg-muted for both hover and selected row
+  - components: DateFilter preset, webapp IssueCategorySelect, webapp SeveritySelect
+  - evidence: `ui/src/novee/components/DateFilter/DateFilter.tsx:206` `"w-full text-left px-1.5 py-1.5 text-sm text-foreground rounded-md hover:bg-muted transition-colors flex items-center justify-between",`
+  - evidence: `ui/src/novee/components/DateFilter/DateFilter.tsx:212` `<Icon name="check" className="h-4 w-4 text-[var(--color-action-primary-cta)]" />`
+  - observed: Selected row bg == hover row bg (#f9f9fb/#32333a). A check glyph is present so selection survives, but a hovered unselected row carries the same fill as the selected one and no selected+hover is defined.
+  - direction: Drop the selected fill and rely on the check glyph, or use --color-surface-selected with a distinct hover.
+- **F2-06** · medium · selected-mechanism-mismatch · 'Trigger has a value' is encoded five different ways and never via aria-pressed
+  - components: Button active→ACTIVE_FILTER, GroupBySelect trigger, DateFilter trigger, SimpleMultiSelect trigger, DateRangeFilter trigger, webapp IssueCategorySelect/SeveritySelect trigger, DataGridFilterTrigger
+  - evidence: `ui/theme.css:253` `--color-surface-hover: var(--color-brand-300);`
+  - evidence: `ui/theme.css:345` `--color-category-bg-brand: var(--color-brand-300);`
+  - observed: Button already ships the filter-selected recipe (--btn-filter-bg-active = surface-selected, --btn-filter-border-active = border-hover-muted, --btn-filter-surface-active = emphasis-link) behind the `active` prop / aria-pressed. GroupBySelect uses chip tokens (brand-300/brand-500/brand-900); DateFilter, SimpleMultiSelect
+  - direction: Route every value-bearing trigger through Button's `active` prop (aria-pressed + --btn-filter-* tokens) and delete the local recipes.
+- **F2-07** · medium · token-misuse · --color-surface-hover used as the persistent selected fill on filter triggers
+  - components: SimpleMultiSelect trigger, DateRangeFilter trigger, DateFilter trigger
+  - evidence: `ui/src/novee/components/MultiSelect/SimpleMultiSelect.tsx:779` `!disabled && "hover:border-[var(--btn-filter-border-hover)]",`
+  - evidence: `ui/src/novee/components/MultiSelect/SimpleMultiSelect.tsx:785` `"border-category-border-brand text-category-surface-brand bg-surface-hover",`
+  - observed: The selected trigger fill is bg-surface-hover (#f2efff/#513a84), byte-identical to TRIGGER_HOVER_FILL's bg-accent. A hovered empty trigger and a selected trigger share the fill; SimpleMultiSelect works around the collision by removing the hover fill once a value exists, so a selected trigger gives no fill feedback on h
+  - direction: Use --btn-filter-bg-active for selected and give surface-selected a distinct step from surface-hover (or add a border/weight cue) so selected+hover can be defined. · (flagged intentional in code comments)
+- **F2-08** · medium · focus-recipe-variance · Clear (×) affordances and SimpleMultiSelect trigger fall back to the browser's default focus outline
+  - components: SelectTriggerAffordance clear, SimpleMultiSelect clear ×, SimpleMultiSelect trigger
+  - evidence: `ui/src/novee/components/SelectTriggerAffordance/SelectTriggerAffordance.tsx:51` `className="group/clr flex size-5 cursor-pointer items-center justify-center rounded-sm [&_svg]:pointer-events-auto"`
+  - evidence: `ui/src/novee/components/MultiSelect/SimpleMultiSelect.tsx:773` `"group w-auto flex items-center gap-2 border border-input rounded-md p-2 whitespace-nowrap cursor-pointer text-sm transition-all duration-30`
+  - observed: All three are tabIndex=0 (role=button / role=combobox) with no focus-visible class. They do not set outline-none, so the UA outline (Chrome blue/black 2px) shows instead of the DS 1px inset brand ring used by SelectTrigger and MultiSelect. The × controls also have no hover fill (icon colour only / nothing).
+  - direction: Give the clear × and the SimpleMultiSelect trigger the same focus-visible ring recipe as the trigger they live in.
+- **F2-10** · medium · aria-mechanism-mismatch · MultiSelectItem's checked visual has no matching ARIA because cmdk overwrites aria-selected with the highlight
+  - components: MultiSelectItem, MultiSelect Select-All row, SimpleMultiSelect Select-All row
+  - evidence: `ui/src/novee/components/MultiSelect/MultiSelectItem.tsx:83` `aria-selected={isSelected}`
+  - evidence: `ui/src/novee/components/MultiSelect/MultiSelectItem.tsx:103` `aria-hidden="true"`
+  - observed: The checked state is drawn by an aria-hidden hand-made checkbox (bg-primary + check); aria-selected is passed but cmdk re-spreads aria-selected=highlighted after it, so the attribute tracks the pointer, not membership. The visual 'checked' and the attribute 'selected' disagree.
+  - direction: Either move MultiSelect rows onto the role=checkbox/aria-checked pattern or stop passing aria-selected and rely on the aria-label consistently.
+- **F2-12** · medium · hover-family-mismatch · MultiSelectItem highlight is one ramp step lighter than every other popover option row
+  - components: MultiSelectItem, CommandItem, Combobox item, SelectItem
+  - evidence: `ui/src/novee/components/MultiSelect/MultiSelectItem.tsx:94` `hover:bg-surface-hover-subtle data-[selected=true]:bg-surface-hover-subtle`
+  - evidence: `ui/src/shadcn/components/ui/command.tsx:158` `"data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground`
+  - observed: brand-200 #f9f8ff/#3c315b vs brand-300 #f2efff/#513a84 for the same role (option row inside a popover list); in light mode brand-200 is 1.03:1 off white.
+  - direction: Let MultiSelectItem inherit CommandItem's bg-accent instead of overriding to the subtle step.
+- **F2-13** · medium · focus-recipe-variance · Select-family triggers use four different focus rings
+  - components: SelectTrigger, Combobox trigger, MultiSelect trigger, SimpleMultiSelect trigger, webapp SeverityThresholdSelect trigger, webapp AssetSelectDropdown trigger
+  - evidence: `ui/src/shadcn/components/ui/select.tsx:26` `focus-visible:border-[var(--input-border-active)] focus-visible:ring-[1px] focus-visible:ring-inset focus-visible:ring-[var(--input-border-a`
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:27` `outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]`
+  - observed: Select/CascadeSelect/MultiSelect/TimePicker: 1px inset brand-900 ring. Combobox (a Button): 3px outer ring at 50%. SimpleMultiSelect: UA outline. SeverityThresholdSelect: 2px ring at 100%. AssetSelectDropdown: 1px inset but raw brand-900 (no dark lift).
+  - direction: Build the Combobox trigger on selectTriggerVariants (as CascadeSelect does) rather than Button so it inherits the form-control ring.
+- **F2-14** · medium · open-state-variance · Open trigger styling differs across pickers (ring, nothing, or hover-equal fill)
+  - components: SelectTrigger, MultiSelect trigger, Combobox trigger, GroupBySelect trigger, DateFilter trigger, SimpleMultiSelect trigger, DataGridColumnManager trigger, DropdownMenuSubTrigger
+  - evidence: `ui/src/shadcn/components/ui/select.tsx:26` `data-[state=open]:border-[var(--input-border-active)] data-[state=open]:ring-[1px] data-[state=open]:ring-inset data-[state=open]:ring-[var(`
+  - evidence: `ui/src/novee/components/MultiSelect/MultiSelect.tsx:898` `isPopoverOpen && "border-ring ring-[1px] ring-border-focus ring-inset",`
+  - observed: Select/CascadeSelect: data-[state=open] border + 1px ring. MultiSelect: same look via isPopoverOpen prop. Combobox, GroupBySelect, DateFilter, SimpleMultiSelect, DateRangeFilter: no open styling on the trigger (Combobox only cross-fades the chevron). DataGridColumnManager and DropdownMenuSubTrigger: open fill identical
+  - direction: Standardise on data-[state=open] = the focus ring recipe for form-control triggers and TriggerChevron for the glyph.
+- **F2-15** · medium · selected-mechanism-mismatch · Selected-item check glyph varies in colour and placement across pickers
+  - components: SelectItem, Combobox item, DropdownMenuCheckboxItem, DropdownMenuRadioItem, DateFilter preset, DataGridDateFilter preset, webapp IssueCategorySelect, webapp PageTopBarProjects, webapp SidebarAccountMe
+  - evidence: `ui/src/shadcn/components/ui/select.tsx:165` `"focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='text-'])]:text-text-tertiary relative flex w-full cursor-default`
+  - evidence: `ui/src/shadcn/components/ui/select.tsx:172` `<Icon name="check" className="size-4" />`
+  - observed: Check colour: tertiary grey (SelectItem, Combobox via svg rule), currentColor (DropdownMenu, SidebarAccountMenu, TicketingUserPicker, SelectedCheck), brand-1000 raw (DateFilter), category-surface-brand (DataGridDateFilter), emphasis-link (IssueCategorySelect, PageTopBarProjects); none at all (TimePicker, GroupBySelect)
+  - direction: Use SelectedCheck (text-current, right-aligned) everywhere and let the row's text colour carry emphasis.
+- **F2-16** · medium · hardcoded-color · Raw primitives bypass the dark-lifting aliases in DateFilter and AssetSelectDropdown
+  - components: DateFilter preset check, webapp AssetSelectDropdown trigger ring
+  - evidence: `ui/src/novee/components/DateFilter/DateFilter.tsx:212` `<Icon name="check" className="h-4 w-4 text-[var(--color-action-primary-cta)]" />`
+  - evidence: `ui/src/novee/components/DateFilter/DateFilter.tsx:207` `preset === option.value && "bg-muted"`
+  - observed: action-primary-cta stays brand-1000 #8149eb in dark (a fill token); as a glyph on the dark panel it is the 2.9:1 case button.tsx warns about. ring-brand-900 stays #8e55fd in dark while ring-ring lifts to brand-800 #ae92ff.
+  - direction: Replace with text-emphasis-link / ring-ring.
+- **F2-17** · medium · hover-family-mismatch · Outline-Button triggers hover grey in dark mode while select-family triggers hover purple
+  - components: GroupBySelect trigger, DateFilter trigger, webapp IssueCategorySelect/SeveritySelect trigger, SelectTrigger, Combobox trigger, MultiSelect trigger
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:34` `outline: `border bg-background hover:bg-accent hover:text-accent-foreground hover:border-[var(--btn-secondary-border-hover)] dark:bg-input/3`
+  - evidence: `ui/src/novee/components/SelectTriggerAffordance/trigger-hover.ts:7` `"hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent";`
+  - observed: In light both hover to #f2efff. In dark, outline Buttons hover to slate-900 at 50% (dark:hover:bg-input/50, neutral) while TRIGGER_HOVER_FILL re-asserts dark:hover:bg-accent (#513a84 purple) on Select/Combobox/MultiSelect/CascadeSelect. GroupBySelect and DateFilter are pickers built on the plain outline Button and so d
+  - direction: Apply TRIGGER_HOVER_FILL (or Button `active`) to every picker trigger, or make outline's dark hover purple too.
+- **F2-18** · medium · disabled-variance · Disabled rows and fields use opacity-50, opacity-40, colour-only, or a grey fill
+  - components: DropdownMenuItem, SelectItem, CommandItem, MultiSelectItem, DataGridFilterOptionList row, DataGridColumnFilter row, webapp RepositoryMultiSelect row, TimePicker wrapper, SelectTrigger
+  - evidence: `ui/src/shadcn/components/ui/dropdown-menu.tsx:84` `data-[disabled]:pointer-events-none data-[disabled]:opacity-50`
+  - evidence: `ui/src/shadcn/components/ui/select.tsx:26` `disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-input`
+  - observed: Rows: opacity-50 (Radix/cmdk/MultiSelectItem) vs opacity-40 (DataGrid lists) vs text-tertiary with no opacity (RepositoryMultiSelect). Fields: opacity-50 (SelectTrigger, Combobox, MultiSelect) vs input-bg-disabled fill + text-disabled (TimePicker, Input).
+  - direction: Pick one disabled treatment per role (rows: opacity-50; fields: input-bg-disabled) and apply it through the shared primitives.
+- **F2-19** · medium · disabled-variance · MultiSelect trigger is a variant-less Button, so Button's primary disabled fill wins over its own opacity-50
+  - components: MultiSelect trigger
+  - evidence: `ui/src/novee/components/MultiSelect/MultiSelect.tsx:316` `variant,`
+  - evidence: `ui/src/novee/components/MultiSelect/MultiSelect.tsx:870` `<Button`
+  - observed: No `variant` reaches Button (the `variant` prop is consumed by the badge cva at line 316/936), so the default/primary variant applies. bg-inherit overrides bg-primary at rest, but `disabled:bg-[var(--btn-primary-bg-disabled)] disabled:opacity-100` are variant-scoped and survive: a disabled MultiSelect should render as 
+  - direction: Pass variant="outline" (or build on selectTriggerVariants) so the trigger inherits the field's disabled recipe.
+- **F2-20** · medium · focus-recipe-variance · Chip-remove and clear buttons use focus: (mouse-triggered) rings of 1-2px at 30-50% alpha
+  - components: MultiSelect chip remove, TagInput tag remove, Search clear
+  - evidence: `ui/src/novee/components/MultiSelect/MultiSelect.tsx:1003` `"flex cursor-pointer items-center rounded-sm focus:outline-none focus:ring-1 focus:ring-border-focus/30",`
+  - evidence: `ui/src/novee/components/MultiSelect/MultiSelect.tsx:992` `toggleOption(value);`
+  - observed: MultiSelect/TagInput use `focus:` so the ring also appears after a mouse click and is 1px at 30%/50% alpha (near invisible); Search uses focus-visible but 2px; the DS norm is focus-visible 3px ring-ring/50 (Button, LabelPicker, DataGridFilterTrigger) or 1px inset for fields.
+  - direction: Use focus-visible with the shared 3px ring-ring/50 recipe on all small inline buttons.
+- **F2-23** · medium · selected-equals-hover · AssetSelectDropdown's selected row is fainter than a hovered row
+  - components: webapp AssetSelectDropdown row
+  - evidence: `webapp/src/lib/common/components/AssetSelectDropdown/AssetSelectDropdown.tsx:187` `"flex items-center gap-2 mx-2 p-2 text-left hover:bg-muted transition-colors cursor-pointer rounded-sm",`
+  - evidence: `webapp/src/lib/common/components/AssetSelectDropdown/AssetSelectDropdown.tsx:188` `value === asset.id && "bg-muted/50",`
+  - observed: Selected = bg-muted at 50% (≈#fcfcfd on white, 1.01:1), hover = bg-muted at 100%; any hovered row looks more selected than the selected one. The check glyph is the only reliable cue.
+  - direction: Drop the selected fill and keep the check glyph, matching Combobox.
+- **F2-26** · medium · focus-recipe-variance · ColorPaletteSwatches draws checked and focus with the same ring colour on the same element
+  - components: ColorPaletteSwatches item
+  - evidence: `ui/src/novee/components/LabelPicker/ColorPaletteSwatches.tsx:70` `focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[state=checked]:ring-2 data-[state=checked]:ring-ring data-[state=checked]:ring-off`
+  - evidence: `ui/src/novee/components/LabelPicker/ColorPaletteSwatches.tsx:66` `<RadioGroupPrimitive.Item`
+  - observed: Checked = 2px ring-ring (100%) with 2px offset; focus-visible = 3px ring-ring (50%) with no offset. On the checked swatch both rules target `ring-width`/`ring-color` and whichever wins hides the other; a focused unchecked swatch vs a checked unfocused swatch differ only by alpha.
+  - direction: Mark the checked swatch with a glyph (check) as the label pills do, and keep the ring for focus.
+- **F2-27** · medium · hover-family-mismatch · DataGrid header: filter trigger hovers purple, column-manager trigger hovers grey
+  - components: DataGridFilterTrigger, DataGridColumnManager trigger
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridFilterTrigger.tsx:25` `"hover:bg-surface-hover focus-visible:ring-[3px] focus-visible:ring-ring/50",`
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridColumnManager.tsx:210` `className="h-full w-9 rounded-none text-text-secondary hover:bg-surface-secondary data-[state=open]:bg-surface-secondary data-[state=open]:t`
+  - observed: Two icon buttons in the same header row that both open popovers: one hovers brand-300 (via bg-surface-hover rather than bg-accent — same hex, different path), the other overrides IconButton ghost's bg-accent to slate-200 and uses the same grey for open.
+  - direction: Let the column-manager IconButton keep ghost's bg-accent hover and use the open ring/fill recipe shared with other triggers.
+- **F2-28** · medium · focus-recipe-variance · Keyboard focus on list rows is a fill in some lists, a ring in others, and the UA outline in the rest
+  - components: PopoverActionRow, DataGridFilterOptionList row, LabelEditor back button, LabelPicker pill, LabelEditor New label, DataGridDateFilter back, GroupBySelect item, DateFilter preset, TimePicker preset, web
+  - evidence: `ui/src/novee/components/PopoverActionRow/PopoverActionRow.tsx:36` `hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground",`
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridFilterOptionList.tsx:134` `: "cursor-pointer hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground",`
+  - observed: Fill-on-focus (focus-visible:bg-accent): PopoverActionRow, DataGridFilterOptionList, LabelEditor back; ring-on-focus (ring-[3px] ring-ring/50): LabelPicker pills, LabelEditor New label, DataGridDateFilter back, DataGridFilterTrigger; UA outline: GroupBySelect, DateFilter, TimePicker, IssueCategorySelect, PageTopBarProj
+  - direction: Rows/menu items: fill (bg-accent); standalone buttons: 3px ring; never leave the UA outline on a custom-styled control.
+- **F3-02** · medium · selected-equals-hover · SidebarMenuSubButton selected is identical to its hover with no non-color cue
+  - components: SidebarMenuSubButton
+  - evidence: `ui/src/shadcn/components/ui/sidebar.tsx:698` `hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent active:text-sidebar-accent-foreground`
+  - evidence: `ui/src/shadcn/components/ui/sidebar.tsx:699` `"data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground",`
+  - observed: Unlike SidebarMenuButton (which adds font-medium), the sub-button's data-[active=true] is bg-sidebar-accent only — the same #f2efff/#513a84 as hover, mousedown, and nothing else changes. text-sidebar-accent-foreground equals text-sidebar-foreground so the text class is a no-op.
+  - direction: Give sub-buttons the same selected recipe as menu buttons (weight or indicator) and a hover token distinct from selected.
+- **F3-04** · medium · aria-mechanism-mismatch · Current page in the app sidebar is encoded only as data-active; no aria-current="page"
+  - components: AppSidebarItem, SidebarMenuButton
+  - evidence: `webapp/src/lib/shell/components/app-sidebar/AppSidebarItem/AppSidebarItem.tsx:37` `const isActive = !!pathname?.startsWith(url);`
+  - evidence: `webapp/src/lib/shell/components/app-sidebar/AppSidebarItem/AppSidebarItem.tsx:42` `<SidebarMenuButton asChild isActive={isActive} tooltip={title}>`
+  - observed: isActive → data-active=true drives the visual, but no aria-current is emitted on the <Link>. A grep for aria-current across app-sidebar/ returns nothing. PaginationLink, StatusStepper, StepRailButton, MarkdownSectionsTab and NewAssetFlowShell all emit aria-current for the same 'current' role.
+  - direction: Have SidebarMenuButton (or AppSidebarItem) emit aria-current="page" alongside data-active, and style via aria-current so mechanism and visual stay coupled.
+- **F3-08** · medium · token-misuse · NovTabs pill and segmented use HOVER tokens as their selected fill
+  - components: NovTabsTrigger pill, NovTabsTrigger segmented
+  - evidence: `ui/src/novee/components/NovTabs/NovTabs.tsx:302` `data-[state=active]:bg-surface-hover data-[state=active]:text-category-surface-brand data-[active]:bg-surface-hover data-[active]:text-categ`
+  - evidence: `ui/src/novee/components/NovTabs/NovTabs.tsx:309` `data-[state=active]:bg-surface-hover-subtle data-[state=active]:border-border-hover data-[state=active]:text-emphasis-link`
+  - observed: The pill's selected background is --color-surface-hover (the sidebar's and ghost button's hover), the segmented's is --color-surface-hover-subtle. A dedicated --tabs-nav-item-bg-active (→ surface-selected) exists and is unused. Since surface-hover == surface-selected in hex today, the pill's selected fill is the same c
+  - direction: Point tab selected fills at a selected/active token (tabs-nav-item-bg-active) and keep surface-hover* for transient hover only.
+- **F3-09** · medium · selected-mechanism-mismatch · Six 'selected tab' grammars across five tab systems
+  - components: shadcn TabsTrigger, NovTabsTrigger pill, NovTabsTrigger underline, NovTabsTrigger segmented, VeeVeeTabStrip, BrowsingTabBar
+  - evidence: `ui/theme.css:492` `/* ── Tabs Navigation ── */`
+  - evidence: `ui/theme.css:503` `/* ── Tabs Browsing ── */`
+  - observed: Selected = white card + shadow (shadcn Tabs, BrowsingTabBar; neutral); purple fill + brand text (pill); brand bar + brand text (underline, VeeVee); subtle tint + brand border + link text (segmented). Mechanisms: Radix data-[state=active], hand-rolled aria-selected (VeeVee), role=button + template string with no ARIA (B
+  - direction: Collapse to the NovTabs variants (retire shadcn Tabs, port BrowsingTabBar and VeeVee onto NovTabs) and make selected fill/text one token pair per variant. · (flagged intentional in code comments)
+- **F3-10** · medium · hover-family-mismatch · Two different light-mode purples for 'brand as tab text': category-surface-brand vs emphasis-link
+  - components: NovTabsTrigger pill, NovTabsTrigger underline, NovTabsTrigger segmented, VeeVeeTabStrip, PaginationLink
+  - evidence: `ui/src/novee/components/NovTabs/NovTabs.tsx:296` `"cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium transition-[color,box-shadow]`
+  - evidence: `ui/src/novee/components/NovTabs/NovTabs.tsx:304` `hover:text-category-surface-brand data-[state=active]:border-border-hover data-[state=active]:text-category-surface-brand`
+  - observed: Pill and underline use text-category-surface-brand (brand-900 #8e55fd light); segmented, VeeVeeTabStrip, PaginationLink, IntegrationSetupDialog use text-emphasis-link (#8149eb light). Both are #ae92ff in dark. The underline bar is border-hover (#8e55fd) while VeeVee's text is #8149eb — bar and text in two purples on th
+  - direction: Standardise selected/hover tab text on one foreground brand token (emphasis-link, per the documented reasoning) in all NovTabs variants.
+- **F3-11** · medium · selected-equals-hover · Underline tabs: hovered-unselected text equals selected text; only the 2px bar differs
+  - components: NovTabsTrigger underline, VeeVeeTabStrip, EntityTabs
+  - evidence: `ui/src/novee/components/NovTabs/NovTabs.tsx:304` `hover:text-category-surface-brand data-[state=active]:border-border-hover data-[state=active]:text-category-surface-brand`
+  - evidence: `webapp/src/lib/common/components/AgentLogPanel/VeeVeeTabStrip.tsx:119` `: "border-b border-border-primary text-text-secondary hover:text-emphasis-link",`
+  - observed: hover:text-* and data-[state=active]:text-* are the same token in both variants; no selected+hover rule exists, so a hovered neighbour's label matches the selected label exactly and only the bar disambiguates. EntityTabs adds data-[state=active]:font-medium; private-access-tabs and CanvasGalleryTabs don't, so the same 
+  - direction: Move the font-normal→font-medium selected rule into the underline variant itself, and give hover a lighter step (emphasis-link-hover or text-primary) than selected. · (flagged intentional in code comments)
+- **F3-12** · medium · missing-state · Pill, segmented and shadcn tab triggers define no hover state at all
+  - components: NovTabsTrigger pill, NovTabsTrigger segmented, shadcn TabsTrigger
+  - evidence: `ui/src/novee/components/NovTabs/NovTabs.tsx:296` `"cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium transition-[color,box-shadow] disabled:pointer-events`
+  - evidence: `ui/src/novee/components/NovTabs/NovTabs.tsx:302` `pill: "text-foreground h-[calc(100%-1px)] flex-1 justify-center rounded-full border border-transparent px-4 py-1`
+  - observed: No hover: prefix in the pill or segmented recipes or in tabs.tsx; only the underline variant hovers. IntegrationSetupDialog had to bolt a neutral hover onto the pill. Every other clickable in the family (sidebar, pagination, breadcrumb, VeeVee, BrowsingTabBar) has a hover.
+  - direction: Add a hover step to pill and segmented that is weaker than their selected fill (surface-hover-subtle for pill, text-primary for segmented).
+- **F3-13** · medium · focus-recipe-variance · Seven focus-ring recipes across the family, plus browser-default outline on every hand-rolled control
+  - components: SidebarMenuButton, shadcn TabsTrigger, NovTabsTrigger pill, NovTabsTrigger underline, NovTabsTrigger segmented, Breadcrumb, GalleryCard, VeeVeeTabStrip, BrowsingTabBar, StepRailButton, MarkdownSection
+  - evidence: `ui/src/novee/styles/facet-pill.ts:39` `"flex h-full items-center rounded-md px-3 outline-hidden focus-visible:ring-[3px] focus-visible:ring-ring/50";`
+  - evidence: `webapp/src/app/globals.css:16` `.recharts-wrapper * {
+    outline: none;`
+  - observed: (a) ring-2 ring-sidebar-ring opaque, no offset; (b) ring-[3px] ring-ring/50 + border-ring + outline-ring outline-1 (double ring); (c) ring-2 ring-ring opaque + rounded-sm; (d) ring-2 ring-inset ring-ring; (e) ring-[3px] ring-ring/50 only; (f) ring-2 ring-border-focus; (g) no class at all → UA focus outline tinted outli
+  - direction: Define one focus utility (e.g. ring-2 ring-ring offset-0, inset where neighbours touch) and apply it to every hand-rolled nav button instead of relying on the UA outline.
+- **F3-14** · medium · selected-no-noncolor-cue · Pagination current page is a text-color change only
+  - components: PaginationLink, PaginationFooter, TablePagination
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:27` `"cursor-pointer inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all`
+  - evidence: `ui/src/novee/components/PaginationFooter/PaginationFooter.tsx:86` `isActive={p === currentPage}
+                  aria-label={`Go to page ${p}`}
+                  aria-current={p === currentPage ? "page" : u`
+  - observed: Current page: text #393547 → #8149eb (light), same font-medium weight, no fill/border/underline. Hover (from ghost) adds bg-accent purple to any page including the current one, so a hovered non-current page (purple fill, dark text) and the current page (no fill, purple text) are two different color-only cues. The inher
+  - direction: Give the current page a fill or weight distinct from hover (e.g. aria-current → btn-filter-bg-active + border) and drop the ghost hover on the current item.
+- **F3-16** · medium · selected-mechanism-mismatch · Four steppers encode 'current' and 'done' with different fills and different ARIA
+  - components: Stepper, WizardStep, StatusStepper, NewAssetFlowShell StepIndicator
+  - evidence: `webapp/src/lib/settings/integrations/components/IntegrationStepper.tsx:123` `return "bg-accent-success text-text-on-accent border-accent-success";`
+  - evidence: `webapp/src/lib/settings/integrations/components/IntegrationStepper.tsx:126` `return "bg-action-primary-cta text-text-on-accent border-border-hover";`
+  - observed: Current step: solid brand disc (Stepper, Wizard) vs outlined brand disc (StepIndicator) vs cyan + pulse (StatusStepper 'active' = in progress). Done step: green tint (Wizard) vs solid brand #8149eb (StepIndicator) vs solid brand-900 #8e55fd primitive (StatusStepper). ARIA: aria-current="step" in StatusStepper/StepIndic
+  - direction: Define one step-state vocabulary (done / current / upcoming) with fixed fills in the DS and have StepIndicator and StatusStepper's non-status states map onto it.
+- **F3-17** · medium · hardcoded-color · Primitive colors bypass the semantic layer in StatusStepper and VeeVeeTabStrip
+  - components: StatusStepper, VeeVeeTabStrip
+  - evidence: `ui/theme.css:295` `--color-action-primary-cta: var(--color-brand-1000);`
+  - evidence: `ui/theme.css:724` `--color-action-primary-cta: var(--color-brand-1000);`
+  - observed: bg-brand-900 (#8e55fd, no dark flip) where every other stepper uses --color-action-primary-cta; text-green-500 / text-blue-500 where emphasis-success / accent-info exist (EntityTabs uses text-accent-info for the same spinner).
+  - direction: Replace with action-primary-cta / emphasis-success / accent-info tokens.
+- **F3-18** · medium · aria-mechanism-mismatch · Visual open/current states without matching ARIA on several nav controls
+  - components: CollapsibleGroupHeader, AppSidebarCollapsibleItem, WizardStep, BrowsingTabBar, Stepper
+  - evidence: `webapp/src/lib/shell/components/app-sidebar/AppSidebar/AppSidebar.tsx:386` `<AppSidebarCollapsibleItem
+                      title="Settings"
+                      icon="gear"
+                      isActive={isSettin`
+  - evidence: `webapp/src/lib/shell/components/app-sidebar/AppSidebarCollapsibleItem/AppSidebarCollapsibleItem.tsx:26` `<Icon
+        name="chevron-right"
+        className="size-4 transition-transform duration-200"`
+  - observed: CollapsibleGroupHeader: <button> toggles isExpanded and rotates a chevron but emits no aria-expanded. AppSidebarCollapsibleItem opens a sub-panel with no aria-expanded/aria-haspopup and a chevron that never rotates despite transition-transform. WizardStep's active link has no aria-current. BrowsingTabBar tabs are role=
+  - direction: Emit aria-expanded on toggles and aria-current/aria-selected on current items, and drive the visuals from those attributes.
+- **F3-19** · medium · open-state-variance · Open-state treatment differs per trigger: purple fill, neutral fill, chevron-only, or nothing
+  - components: SidebarMenuButton, Breadcrumb MenuCrumb, AccordionTrigger, CollapsibleGroupHeader, SidebarAccountMenu, NovTabs More trigger
+  - evidence: `ui/src/shadcn/components/ui/sidebar.tsx:483` `data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground`
+  - evidence: `webapp/src/lib/shell/components/app-sidebar/AppSidebarItem/AppSidebarItem.tsx:42` `<SidebarMenuButton asChild isActive={isActive} tooltip={title}>`
+  - observed: Sidebar open-hover and DropdownMenuSubTrigger open = bg-accent (purple); MenuCrumb open = bg-surface-secondary (neutral, == its hover); Accordion/CollapsibleGroupHeader open = chevron rotation only; SidebarAccountMenu PopoverTrigger has no open style; NovTabs More trigger reuses the pill selected fill for data-[active]
+  - direction: Pick one open recipe (hover fill held + chevron flip) and apply it to every popover/menu trigger in the family. · (flagged intentional in code comments)
+- **F3-20** · medium · disabled-variance · Disabled opacity is 30%, 50% or 60% and is re-implemented in consumers
+  - components: PaginationLink, PaginationFooter, TablePagination, BrowsingTabBar, GalleryCard, WizardStep, SidebarMenuButton, NovTabsTrigger
+  - evidence: `ui/src/novee/components/PaginationFooter/PaginationFooter.tsx:69` `currentPage <= 1 && "pointer-events-none opacity-50",`
+  - evidence: `ui/src/novee/components/TablePagination/TablePagination.tsx:54` `!table.getCanPreviousPage() && "pointer-events-none opacity-50",`
+  - observed: pagination.tsx defines no disabled recipe; PaginationFooter and TablePagination each hand-write pointer-events-none opacity-50 + aria-disabled. BrowsingTabBar uses opacity-30, GalleryCard opacity-60, everything else opacity-50. Cursor: not-allowed (Wizard) vs default (BrowsingTabBar, GalleryCard) vs none.
+  - direction: Move the pagination disabled recipe into PaginationLink (aria-disabled:) and standardise on one opacity.
+- **F3-21** · medium · duplicate-local-styling · Consumers re-implement DS tab, menu-item and selected-card recipes by hand
+  - components: VeeVeeTabStrip, BrowsingTabBar, SidebarAccountMenu, MarkdownSectionsTab, StepRailButton, IntegrationSetupDialog, NewAssetFlowShell
+  - evidence: `webapp/src/lib/common/components/AgentLogPanel/VeeVeeTabStrip.tsx:118` `? "border-b-2 border-border-hover text-emphasis-link"`
+  - evidence: `webapp/src/lib/common/components/AgentLogPanel/VeeVeeTabStrip.tsx:119` `: "border-b border-border-primary text-text-secondary hover:text-emphasis-link",`
+  - observed: VeeVeeTabStrip ≈ NovTabs underline; BrowsingTabBar ≈ shadcn TabsList/Trigger; MENU_ITEM_CLASS ≈ DropdownMenuItem (but neutral hover instead of bg-accent); StepRailButton and MarkdownSectionsTab ≈ OptionCard/QuickFilter 'border-border-hover bg-surface-selected'; IntegrationSetupDialog ≈ NovTabs segmented layered over pi
+  - direction: Promote the 'selected card' and vertical-nav recipes into @novee/ui and port the five hand-rolled strips/lists onto NovTabs or SidebarMenu. · (flagged intentional in code comments)
+- **F3-22** · medium · token-misuse · Component tokens that describe these exact components are dead, while bridges point at the wrong state
+  - components: SidebarMenuButton, shadcn TabsList, NovTabsTrigger, InfoBanner
+  - evidence: `ui/theme.css:462` `--nav-item-bg-active: var(--color-surface-tertiary);`
+  - evidence: `ui/theme.css:496` `--tabs-nav-item-bg-hover: var(--color-surface-hover);`
+  - observed: grep over ui/src and webapp/src finds zero consumers of --nav-item-bg-active, --tabs-nav-item-*, --tabs-browsing-item-*. shadcn TabsList reaches --tabs-browsing-bg only through the generic --color-muted bridge. --color-sidebar-accent (used for the ACTIVE item) is bridged to nav-item-bg-HOVER. --color-surface-selected i
+  - direction: Either wire the components to their named tokens (sidebar-accent→hover, a new sidebar-active→nav-item-bg-active, NovTabs→tabs-nav-item-*) or delete the dead tokens; split surface-selected from surface · (flagged intentional in code comments)
+- **F3-24** · medium · missing-state · BrowsingTabBar inactive-tab hover is imperceptible in light mode
+  - components: BrowsingTabBar
+  - evidence: `webapp/src/lib/common/components/UnifiedDrawer/BrowsingTabBar.tsx:135` `: "bg-transparent hover:bg-surface-primary/50"`
+  - evidence: `webapp/src/lib/common/components/UnifiedDrawer/BrowsingTabBar.tsx:72` `<div className="flex-1 flex items-center h-9 bg-surface-secondary rounded-lg p-1 min-w-0">`
+  - observed: Hover paints surface-primary (#ffffff) at 50% over the container's surface-secondary (#f9f9fb) → ≈#fcfcfd, a 1.02:1 step. Dark: #25272d@50% over #32333a ≈ #2b2d33, marginal.
+  - direction: Use a real hover token (surface-emphasis or the brand triad) or port the strip onto NovTabs.
+- **F3-29** · medium · selected-no-noncolor-cue · Hand-rolled 'selected card' rails rely on fill+border color only
+  - components: MarkdownSectionsTab, StepRailButton, ActionGallery
+  - evidence: `webapp/src/lib/common/components/MarkdownSectionsTab/MarkdownSectionsTab.tsx:145` `? "border-border-hover bg-surface-selected text-text-primary"`
+  - evidence: `webapp/src/lib/issues/single-issue/components/StepRailButton.tsx:28` `? "border-border-hover bg-surface-selected"`
+  - observed: Current item = purple border + purple fill (both color), label weight unchanged (StepRailButton keeps font-semibold on every row). aria-current="true" rather than "step"/"page".
+  - direction: Add a weight or indicator-bar cue to the shared selected-card recipe and use aria-current="step".
+- **F4-02** · medium · selected-equals-hover · shadcn table hover (purple, from tbody) outranks the row's selected (neutral) — no selected+hover state
+  - components: Table (shadcn) / TableBody, Table (shadcn) / TableRow
+  - evidence: `ui/src/shadcn/components/ui/table.tsx:56` `className={cn("[&_tr:last-child]:border-0 [&_tr:hover]:bg-table-row-hover", className)}`
+  - evidence: `ui/src/shadcn/components/ui/table.tsx:80` `"data-[state=selected]:bg-muted border-b transition-colors",`
+  - observed: [&_tr:hover] on tbody compiles to `.x tr:hover` (0,2,1) while data-[state=selected] on the row is (0,2,0); hovering a selected row replaces the grey selected fill with the purple hover fill. Hover (purple) and selected (grey) are also different hue families in the same primitive.
+  - direction: Move hover onto TableRow itself (hover:bg-table-row-hover) and define an explicit selected and selected+hover pair with a stronger step for selected.
+- **F4-03** · medium · selected-mechanism-mismatch · Row selection is encoded five different ways across row primitives
+  - components: Table (shadcn) / TableRow, DataGridRow, DataGridDataRow, FileExplorer / TreeRow, NetworkTrafficRow
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridRow.tsx:145` `data-selected={isSelected || undefined}`
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridRow.tsx:166` `"hover:bg-table-row-hover data-[selected]:bg-table-row-hover",`
+  - observed: TableRow: data-state=selected → neutral slate-200. DataGridRow: data-selected → brand-300 (same as hover). DataGridDataRow: no row attribute, no tint, checkbox only. TreeRow: prop isSelected → brand-300 + brand text + semibold + aria-selected. NetworkTrafficRow: checkbox only, no row tint, no aria.
+  - direction: Standardise on one attribute (aria-selected or data-selected) and one recipe (--color-surface-selected + a non-color cue) shared by every row primitive.
+- **F4-09** · medium · hover-family-mismatch · Nested clickable cell hovers neutral inside a purple-hovering DataGrid row
+  - components: AssessmentMiniTable (webapp), DataGridRow
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridRow.tsx:166` `"hover:bg-table-row-hover data-[selected]:bg-table-row-hover",`
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridRow.tsx:168` `onRowClick && "cursor-pointer",`
+  - observed: The cell target paints surface-secondary (#f9f9fb) while the enclosing DataGridRow paints table-row-hover (#f2efff) on the same hover — a grey patch inside a purple row, and the row still tints although it is not itself clickable.
+  - direction: Let DataGrid suppress row hover when onRowClick is absent, and give in-cell targets a tint from the same family as the row.
+- **F4-16** · medium · other · shadcn TableBody applies row hover via a descendant selector that consumers cannot override on the row
+  - components: Table (shadcn) / TableBody, CvssInfoPopover (webapp)
+  - evidence: `/home/user/novee/frontend/packages/ui/src/shadcn/components/ui/table.tsx:56` `className={cn("[&_tr:last-child]:border-0 [&_tr:hover]:bg-table-row-hover", className)}`
+  - evidence: `/home/user/novee/frontend/packages/ui/src/shadcn/components/ui/table.tsx:80` `"data-[state=selected]:bg-muted border-b transition-colors",`
+  - observed: `[&_tr:hover]:bg-table-row-hover` compiles to `.cls tr:hover` (0,2,1); the row's `hover:bg-transparent` is (0,2,0) and loses, so the non-interactive CVSS metric rows still turn purple on hover. The selector also reaches any nested table's rows.
+  - direction: Put hover on TableRow (hover:bg-table-row-hover) and drop the tbody descendant rule so className overrides work.
+- **F4-17** · medium · other · Header hover fires on non-interactive header cells (every <th>, and the select-all / sentinel DataGrid headers)
+  - components: Table (shadcn) / TableHead, DataGridHeaderCell
+  - evidence: `/home/user/novee/frontend/packages/ui/src/shadcn/components/ui/table.tsx:93` `"hover:bg-table-head-column-hover text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pr`
+  - evidence: `/home/user/novee/frontend/packages/ui/src/novee/components/DataGrid/components/DataGridHeaderCell.tsx:141` `"hover:bg-surface-hover-subtle",`
+  - observed: Both apply hover unconditionally; a column with no sort and no filter (e.g. the checkbox column, 'Completed on' in AssessmentMiniTable) still tints as if clickable.
+  - direction: Gate the header-cell hover on canSort || canFilter || canReorder.
+- **F4-18** · medium · open-state-variance · Row kebab 'menu open' is differentiated from hover in RowActionButton but identical to hover in Notification kebabs
+  - components: RowActionButton, NotificationItem / kebab, NotificationsPanel / kebab
+  - evidence: `/home/user/novee/frontend/packages/ui/src/novee/components/RowActionButton/RowActionButton.tsx:36` `"hover:bg-surface-hover-strong focus-visible:bg-surface-hover-strong",`
+  - evidence: `/home/user/novee/frontend/packages/ui/src/novee/components/RowActionButton/RowActionButton.tsx:37` `"data-[state=open]:border-border-hover data-[state=open]:bg-surface-hover-strong",`
+  - observed: RowActionButton: hover brand-400 fill, open brand-400 + brand-900 border. Notification kebabs: hover brand-300, open brand-300 (no change), and they bypass RowActionButton entirely.
+  - direction: Use RowActionButton for the notification kebabs so hover/open share the canonical recipe.
+- **F4-20** · medium · current-vs-selected-conflation · FileExplorer: search-match tint overrides the selected (open) file so the current file loses its selected look
+  - components: FileExplorer / TreeRow
+  - evidence: `ui/src/novee/components/FileExplorer/FileExplorer.tsx:636` `const rowStateClasses = isActiveMatch`
+  - evidence: `ui/src/novee/components/FileExplorer/FileExplorer.tsx:638` `: isMatch`
+  - observed: Precedence activeMatch > match > selected: a file that is open in the pane and is a plain match renders exactly like every other match (amber, normal weight, text-primary) — the brand text and semibold that mark 'selected' are dropped. aria-selected still reports it.
+  - direction: Compose the states (keep brand text/semibold on a selected match, amber fill from match) instead of picking one class set. · (flagged intentional in code comments)
+- **F4-21** · medium · hardcoded-color · DetailCell focus ring hardcodes the brand-900 primitive, so it does not flip to the dark-mode focus hue
+  - components: DetailCell
+  - evidence: `ui/src/novee/components/DetailCell/DetailCell.tsx:58` `"group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-900",`
+  - evidence: `ui/theme.css:715` `/* brand-800 over brand-900: the focus ring has to clear 3:1 against the dark page. */`
+  - observed: ring-brand-900 is #8e55fd in both themes; the semantic focus token is brand-900 light / brand-800 (#ae92ff) dark because brand-900 'is only 3.4:1 on the dark page' (theme.css:753-754). getColumnPinStyles.ts:30 likewise carries a hardcoded `rgba(0,0,0,0.2)` fallback.
+  - direction: Use ring-ring or ring-border-focus instead of the primitive.
+- **F4-22** · medium · missing-state · DetailRow (clickable) has no hover and no focus recipe while sibling DetailCell has both
+  - components: DetailRow, DetailCell
+  - evidence: `ui/src/novee/components/DetailRow/DetailRow.tsx:24` `const Wrapper = onClick ? "button" : "div";`
+  - evidence: `ui/src/novee/components/DetailRow/DetailRow.tsx:31` `onClick && "cursor-pointer",`
+  - observed: DetailRow renders a <button> with only cursor-pointer: no hover tint/underline, no focus-visible class (browser default outline), no active. DetailCell underlines the value on hover and draws an inset ring on focus.
+  - direction: Give DetailRow the DetailCell hover underline and the DS focus ring (or deprecate one of the two).
+- **F4-23** · medium · hover-family-mismatch · AssetRepositoriesCell '+N' pill hovers by opacity, a fourth hover mechanism in table cells, with no focus style
+  - components: AssetRepositoriesCell (webapp)
+  - evidence: `webapp/src/lib/common/components/TableCells/AssetRepositoriesCell.tsx:99` `className="shrink-0 rounded-full bg-surface-secondary px-1.5 py-0.5 text-xs font-medium text-text-secondary hover:opacity-80 transition-opac`
+  - evidence: `webapp/src/lib/common/components/TableCells/AssetRepositoriesCell.tsx:95` `<PopoverTrigger asChild>`
+  - observed: hover:opacity-80 fades the pill instead of tinting; no focus-visible class on the <button> (browser default). Neighbouring in-cell controls (RowActionButton, filter trigger, DetailCell) tint or underline.
+  - direction: Use a surface tint step for hover and the DS focus ring.
+- **F4-24** · medium · disabled-variance · NotificationChannelRow dims its label with opacity-50 on an undefined `text-muted-foreground` class
+  - components: NotificationChannelRow (webapp), AssetNameCell (webapp)
+  - evidence: `webapp/src/lib/settings/notifications/components/NotificationChannelRow.tsx:57` `className={`text-xs text-muted-foreground ${!active && "opacity-50"}`}`
+  - evidence: `webapp/src/lib/common/components/TableCells/AssetNameCell.tsx:87` `${isGrayedOut ? "text-text-disabled" : ""}`}`
+  - observed: theme.css defines no --color-muted-foreground (grep: 0 hits in theme.css/globals.css), so text-muted-foreground emits no CSS and the label inherits; the inactive state is a 50% opacity fade. AssetNameCell greys out via the semantic --color-text-disabled token. The template also interpolates the string "false" when acti
+  - direction: Replace with text-text-secondary at rest and text-text-disabled when inactive.
+- **F5-02** · medium · selected-equals-hover · ActionGallery category filter: pressed fill is byte-identical to hover fill with no non-colour cue
+  - components: ActionGallery category button
+  - evidence: `webapp/src/lib/settings/workflows/editor/ActionGallery.tsx:176` `"body body-size-small rounded-md px-2 py-1.5 text-left text-text-secondary hover:bg-surface-hover",`
+  - evidence: `webapp/src/lib/settings/workflows/editor/ActionGallery.tsx:177` `category === g && "bg-surface-selected text-text-primary",`
+  - observed: hover:bg-surface-hover and bg-surface-selected both resolve to #f2efff light / #513a84 dark. A hovered unselected category looks selected; the only residual difference is text-secondary vs text-primary (#575465 vs #393547), no weight/indicator.
+  - direction: Give the pressed state a distinct token (e.g. nav-item-bg-active neutral or a stronger brand step) plus a weight/indicator cue, and define aria-pressed:hover.
+- **F5-03** · medium · selected-equals-hover · TicketDestinationPicker saved item shares its fill with ghost hover
+  - components: TicketDestinationPicker provider item, Button ghost
+  - evidence: `webapp/src/lib/issues/components/TicketDestinationPicker.tsx:153` `saved && "bg-surface-selected",`
+  - evidence: `webapp/src/lib/issues/components/TicketDestinationPicker.tsx:155` `reason && (saved ? "hover:bg-surface-selected" : "hover:bg-transparent"),`
+  - observed: bg-accent → btn-ghost-bg-hover → surface-hover = #f2efff, same as bg-surface-selected. Hovering any unselected provider paints the selected fill; only the trailing check icon distinguishes. selected+hover is only defined for unavailable rows.
+  - direction: Use a selection token that differs from the ghost hover tint and add the check-mark cue to the DS pattern rather than the consumer.
+- **F5-05** · medium · token-misuse · IntegrationStepper option card paints checked with the hover token and hover with a neutral
+  - components: IntegrationStepper option card
+  - evidence: `webapp/src/lib/settings/integrations/components/IntegrationStepper.tsx:165` `export function ChoiceCard({`
+  - evidence: `webapp/src/lib/settings/integrations/components/IntegrationStepper.tsx:191` `? "border-border-hover bg-surface-hover"`
+  - observed: Checked = bg-surface-hover (brand-300 purple); unchecked hover = bg-surface-secondary (slate-200 neutral). The semantics are inverted relative to ReportKindCard (checked bg-surface-selected, hover border-only) and AssessmentTypeCard (checked bg-surface-hover-subtle, hover border-only).
+  - direction: Use bg-surface-selected for checked and the shared card hover recipe; add a role=radiogroup wrapper.
+- **F5-06** · medium · dark-mode-collapse · FlowNodeCard: hovered and selected nodes are identical in dark mode
+  - components: FlowNodeCard
+  - evidence: `ui/src/novee/components/FlowNodeCard/FlowNodeCard.tsx:23` `true: "inset-ring-border-focus",`
+  - evidence: `ui/src/novee/components/FlowNodeCard/FlowNodeCard.tsx:24` `false: "inset-ring-border-secondary hover:inset-ring-border-hover-muted",`
+  - observed: Light: hover ring #d4c6ff vs selected ring #8e55fd (distinct). Dark: --color-border-hover-muted and --color-border-focus both resolve to brand-800 #ae92ff, so a hovered unselected node is pixel-identical to the selected node. The card has no other selected cue.
+  - direction: Add a non-ring selected cue (fill tint or weight) or pick a dark hover-muted value that stays one step below border-focus.
+- **F5-07** · medium · selected-mechanism-mismatch · Selected card is drawn six different ways across the family
+  - components: OptionCard, ReportKindCard, JiraSitePickerStep, StepRailButton, AssessmentTypeCard, AssetEnvironmentSection, IssueRemedationsDetails, IntegrationStepper, StartAssessmentToggleCard, AttackChainStepCard
+  - evidence: `webapp/src/lib/onboarding/v2/AssessmentTypeCard.tsx:83` `? "border-border-hover bg-surface-hover-subtle"`
+  - evidence: `webapp/src/lib/settings/integrations/components/IntegrationStepper.tsx:191` `? "border-border-hover bg-surface-hover"`
+  - observed: Fills: surface-selected (brand-300) in OptionCard/ReportKindCard/JiraSitePicker/StepRailButton/MarkdownSectionsTab; surface-hover-subtle (brand-200) in AssessmentTypeCard/AssetEnvironmentSection/IssueRemedationsDetails; surface-hover (brand-300 via hover token) in IntegrationStepper; no fill + ring-1 border-hover in St
+  - direction: Promote one selectable-card recipe into @novee/ui (OptionCard already exists) and migrate the local copies. · (flagged intentional in code comments)
+- **F5-09** · medium · focus-recipe-variance · Seven different focus recipes on same-role cards, two of which equal hover
+  - components: OptionCard, ReportKindCard, GalleryCard, Card interactive, TestingCategoryTile, FileUploadDropZone, Checkbox, RadioGroupItem
+  - evidence: `ui/src/novee/components/FileUploadDropZone/FileUploadDropZone.tsx:661` `"focus-within:ring-2 focus-within:ring-border-focus focus-within:ring-inset focus-within:bg-surface-primary",`
+  - evidence: `webapp/src/lib/onboarding/v2/AssessmentTypeCard.tsx:81` `"focus-visible:outline-none focus-visible:border-border-hover",`
+  - observed: ring-2 offset-2 (OptionCard), ring-2 offset-1 (ReportKindCard), ring-2 no offset (GalleryCard), ring-2 inset via focus-within (FileUploadDropZone), ring-[3px] at 50% alpha (Checkbox/Radio/Button), 1px border colour via focus-within (Card interactive), 1px border colour via focus-visible (TestingCategoryTile, Assessment
+  - direction: Adopt one card focus recipe (ring-2 ring-border-focus ring-offset-2) and use focus-visible, not focus-within, on self-focusable cards. · (flagged intentional in code comments)
+- **F5-10** · medium · missing-state · Many clickable cards define no focus-visible style at all and rely on the UA outline
+  - components: CardLink, StepRailButton, MarkdownSectionsTab, IntegrationStepper, FixOptionCard, AttackChainNode, StartAssessmentToggleCard, StatusChipToggle, SeverityChipToggle, ActionGallery category button, Mobil
+  - evidence: `webapp/src/lib/issues/single-issue/components/StepRailButton.tsx:26` `"flex w-full items-center gap-1.5 rounded-md border p-2 text-left transition-colors",`
+  - evidence: `ui/theme.css:835` `@apply border-border outline-ring/50;`
+  - observed: No focus-visible:/focus: utilities; outline is not suppressed so the browser default outline (coloured by the base `outline-ring/50`) appears. It is visible but differs from every explicit DS ring (shape, width, alpha).
+  - direction: Add the shared card focus-visible ring to these elements (ideally by migrating them onto OptionCard/Card interactive).
+- **F5-14** · medium · selected-mechanism-mismatch · Single-select option cards encode 'checked' via five different mechanisms
+  - components: ReportKindCard, AssessmentTypeCard, AssetEnvironmentSection, IntegrationStepper, JiraSitePickerStep, OptionCard
+  - evidence: `webapp/src/lib/reports/components/CreateReportModal/ReportKindCard.tsx:70` `"data-[state=checked]:border-border-hover data-[state=checked]:bg-surface-selected",`
+  - evidence: `webapp/src/lib/onboarding/v2/AssessmentTypeCard.tsx:55` `role="radio"`
+  - observed: Radix data-state (ReportKindCard), div role=radio + roving tabindex (AssessmentTypeCard/AssetEnvironmentSection), button role=radio without radiogroup (IntegrationStepper), label around RadioGroupItem with template-string class (JiraSitePickerStep), aria-pressed button (OptionCard). Visuals differ per mechanism (F5-07)
+  - direction: Add a RadioGroup-backed `OptionCardGroup`/radio mode to @novee/ui and migrate the four local pickers. · (flagged intentional in code comments)
+- **F5-15** · medium · duplicate-local-styling · Step rail re-implemented four times with two different selected fills
+  - components: StepRailButton, MarkdownSectionsTab, IssueRemedationsDetails, IssueMitigationDetails
+  - evidence: `webapp/src/lib/issues/single-issue/components/StepRailButton.tsx:28` `? "border-border-hover bg-surface-selected"`
+  - evidence: `webapp/src/lib/issues/single-issue/components/StepRailButton.tsx:6` `* One entry in the steps rail Shared by the steps drawer and`
+  - observed: Same numbered-step rail: two copies use bg-surface-selected (brand-300), two use bg-surface-hover-subtle (brand-200); two have aria-current, two have none.
+  - direction: Route MarkdownSectionsTab and the remediation rails through StepRailButton.
+- **F5-16** · medium · duplicate-local-styling · OptionCard exists in @novee/ui but four webapp selectable cards re-implement it
+  - components: AssessmentTypeCard, AssetEnvironmentSection (x2), ReportKindCard, IntegrationStepper, FixOptionCard
+  - evidence: `webapp/src/lib/reports/components/CreateReportModal/ReportKindCard.tsx:18` `* design system doesn't have yet (`@novee/ui` has CardLink, which is a`
+  - evidence: `webapp/src/lib/assets/onboarding/AssetEnvironmentSection.tsx:118` `? "border-border-hover bg-surface-hover-subtle"`
+  - observed: ReportKindCard's comment claims the DS lacks a selectable option card, but OptionCard ships one with selected/disabled/focus recipes. AssessmentTypeCard is copy-pasted into two AssetEnvironmentSection files with its focus bug (F5-01).
+  - direction: Extend OptionCard with a radio/checkbox indicator slot and replace the local copies. · (flagged intentional in code comments)
+- **F5-18** · medium · hardcoded-color · Attack-chain selection uses the brand-700 primitive instead of a semantic token
+  - components: AttackChainStepCard, AttackChainNode
+  - evidence: `webapp/src/lib/issues/single-issue/components/AttackChainStepCard.tsx:41` `isSelected && "ring-2 ring-brand-700",`
+  - evidence: `webapp/src/lib/issues/single-issue/components/AttackChainNode.tsx:105` `"ring-2 ring-brand-700 ring-offset-2 ring-offset-surface-secondary",`
+  - observed: ring-brand-700 (#c3b0ff) does not flip in dark mode and is the same hex as --color-action-primary-cta-disabled in light; every other selected ring in the family uses border-focus/border-hover (#8e55fd/#ae92ff).
+  - direction: Add a semantic --color-border-selected-muted token (brand-700 light / brand-800 dark) and use it here instead of the primitive. · (flagged intentional in code comments)
+- **F5-20** · medium · disabled-variance · Disabled cards use opacity-50, opacity-60, grey fill, or token fills interchangeably
+  - components: OptionCard, TestingCategoryTile, ReportKindCard, RadioGroupItem, CheckboxField, GalleryCard, IntegrationTile, WorkflowCanvas locked node, TicketDestinationPicker
+  - evidence: `ui/src/novee/components/OptionCard/OptionCard.tsx:17` `disabled: "border-border-primary bg-surface-secondary [&>*]:opacity-50",`
+  - evidence: `webapp/src/lib/onboarding/components/TestingCategorySelector/TestingCategoryTile.tsx:71` `? "cursor-not-allowed opacity-50"`
+  - observed: opacity-50 (OptionCard children, TestingCategoryTile, ReportKindCard, RadioGroupItem, CheckboxField label) vs opacity-60 (GalleryCard, IntegrationTile, locked FlowNode, TicketDestinationPicker) vs grey fill (OptionCard bg-surface-secondary) vs cursor-not-allowed vs cursor-default vs pointer-events-none.
+  - direction: Pick one disabled recipe for cards (OptionCard's content-dim + grey fill) and one opacity step. · (flagged intentional in code comments)
+- **F5-21** · medium · disabled-variance · Card interactive is used as a role=button with aria-disabled but has no disabled styling and uses focus-within
+  - components: Card interactive, WorkflowTemplates
+  - evidence: `webapp/src/lib/settings/workflows/components/WorkflowTemplates.tsx:87` `return { canWrite, canStart: canWrite && !install.isPending, start };`
+  - evidence: `webapp/src/lib/settings/workflows/components/WorkflowTemplates.tsx:120` `tabIndex={canWrite ? 0 : -1}`
+  - observed: When canStart is false the card keeps cursor-pointer and the hover border; there is no aria-disabled: variant. focus-within (not focus-visible) means a mouse click also paints the focus border and any focused descendant lights the whole card.
+  - direction: Add aria-disabled: styling and switch the interactive variant to focus-visible:ring-2 ring-border-focus ring-offset-2.
+- **F5-22** · medium · selected-no-noncolor-cue · Several persistent selections are shown by tint/border colour only
+  - components: OptionCard, StepRailButton, MarkdownSectionsTab, IssueRemedationsDetails, ActionGallery category button, CardLink (AssessmentInitialStep)
+  - evidence: `ui/src/novee/components/OptionCard/OptionCard.tsx:15` `selected: "border-border-hover bg-surface-selected",`
+  - evidence: `ui/src/novee/components/OptionCard/OptionCard.tsx:26` `"hover:-translate-y-0.5 hover:border-border-hover hover:shadow-md " +`
+  - observed: No check, dot, weight or indicator bar; the selected border colour equals the hover border colour, so the only persistent signal is the brand-300 fill (1.09:1 against white).
+  - direction: Add a standard indicator (check or radio dot) to OptionCard's selected state and reuse it in the rails.
+- **F5-25** · medium · missing-state · RadioGroupItem has no hover while Checkbox has a purple hover tint and border
+  - components: RadioGroupItem, Checkbox
+  - evidence: `ui/theme.css:479` `/* ── Checkbox ──
+     for the idle border, the disabled borde`
+  - evidence: `ui/theme.css:592` `--color-input: var(--input-border);`
+  - observed: The radio is the stock shadcn recipe (border-input, dark:bg-input/30, no hover, no --checkbox-*-style tokens); the checkbox has DS tokens for idle border, hover tint and hover border. Both appear inside selectable cards (JiraSitePickerStep, OnboardingModeOption, TestingCategoryTile, CheckboxField).
+  - direction: Mint --radio-* tokens mirroring --checkbox-* and apply the same hover/idle/disabled recipe.
+- **F6-01** · medium · focus-recipe-variance · Seven distinct focus-ring recipes across form controls
+  - components: Input, Textarea, SelectTrigger, SegmentedDateInput, Checkbox, RadioGroupItem, Switch, Slider, Search clear, OptimizablePromptField viewport, EditableCellTrigger, ToolbarIconButton, RepositoryMultiSele
+  - evidence: `ui/src/shadcn/components/ui/select.tsx:15` ` * Select is a form control, so it shares Input's sizing scale (32 / 40 / 48 on an`
+  - evidence: `ui/src/shadcn/components/ui/select.tsx:16` ` * even 8px step) and Input's 1px inset focus ring — not Button's 3px outer ring.`
+  - observed: Text-entry controls (Input, Textarea, SelectTrigger, SegmentedDateInput, both OptimizablePrompt wrappers) paint a 1px solid brand-900 inset ring over a brand border (2px effective stroke); Checkbox, Radio, Switch, calendar dropdown, EditableCellTrigger, ToolbarIconButton, onboarding RepositoryMultiSelect trigger and Sc
+  - direction: Define two named focus recipes (field = 1px inset stroke, control = 3px/50% halo), export them as constants, and make every form-adjacent element pick one instead of inventing a width. · (flagged intentional in code comments)
+- **F6-03** · medium · hardcoded-color · AssetSelectDropdown focus/open ring uses brand-900 primitive that does not flip in dark
+  - components: AssetSelectDropdown
+  - evidence: `webapp/src/lib/common/components/AssetSelectDropdown/AssetSelectDropdown.tsx:87` `"w-full h-9 px-3 py-2 text-sm bg-background border border-input rounded-md overflow-visible",`
+  - evidence: `webapp/src/lib/common/components/AssetSelectDropdown/AssetSelectDropdown.tsx:89` `"outline-none focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-brand-900 focus-visible:ring-inset",`
+  - observed: ring-brand-900 stays #8e55fd in dark while border-ring flips to #ae92ff, so the inset ring and the border are two different purples and the ring is the one theme.css documents as under 3:1 on the dark page.
+  - direction: Replace ring-brand-900 with ring-ring (or the shared field focus constant).
+- **F6-06** · medium · selected-equals-hover · Input hover fill is byte-identical to --color-surface-selected in both themes
+  - components: Input, SelectTrigger, SegmentedDateInput, AssetSelectDropdown, InlineEditableText
+  - evidence: `ui/src/shadcn/components/ui/input.tsx:13` `"hover:bg-[var(--input-bg-hover)] hover:border-[var(--input-border-hover)]",`
+  - evidence: `ui/theme.css:471` `--input-bg-hover: var(--color-surface-hover);`
+  - observed: --input-bg-hover → surface-hover → brand-300 (#f2efff / #513a84), the same hex as surface-selected used for active tabs, KPI filters and selected rows. A hovered empty field carries the 'selected' tint; InlineEditableText uses the same tint as its focus cue.
+  - direction: Point --input-bg-hover at surface-hover-subtle (brand-200) or split surface-selected onto its own step so hover and selected never resolve to the same hex.
+- **F6-08** · medium · selected-mechanism-mismatch · Checked state encoded three ways with three visuals (Checkbox prop branch, Switch data-state, Radio indicator)
+  - components: Checkbox, RadioGroupItem, Switch
+  - evidence: `ui/src/shadcn/components/ui/checkbox.tsx:53` `data-state={state}`
+  - evidence: `ui/src/shadcn/components/ui/switch.tsx:16` `rounded-full border-2 border-transparent shadow-xs`
+  - observed: Checkbox sets data-state but styles checked through an `isActive &&` JS branch (fill + border → brand-1000); Switch styles via data-[state=checked]; Radio never styles the item and only mounts a brand ring-dot while the border stays grey border-input (#e0e1e6). Rest borders also differ: Checkbox --checkbox-border (#aba
+  - direction: Move Checkbox to data-[state=checked]: utilities and give Radio a checked border (border-primary) so the three selection controls share one rest border and one checked treatment. · (flagged intentional in code comments)
+- **F6-09** · medium · missing-state · Radio and Switch have no hover state; checked Checkbox has none either
+  - components: RadioGroupItem, Switch, Checkbox
+  - evidence: `ui/src/shadcn/components/ui/radio-group.tsx:28` `rounded-full border shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opaci`
+  - evidence: `ui/src/shadcn/components/ui/switch.tsx:16` `rounded-full border-2 border-transparent shadow-xs transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled`
+  - observed: Checkbox (unchecked) tints brand-200 and lifts its border to brand-600 on hover; the checked branch (line 59) has no hover classes; RadioGroupItem and Switch define no hover: at all.
+  - direction: Add the --checkbox-bg-hover / --checkbox-border-hover pair to Radio and Switch, and define a checked+hover (e.g. --btn-primary-bg-hover) for all three.
+- **F6-11** · medium · other · Read-only Input is visually the disabled Input and suppresses its focus ring
+  - components: Input, ScanCustomeHeadersHeaderField, AssetSelectDropdown
+  - evidence: `ui/src/shadcn/components/ui/input.tsx:15` `"disabled:bg-[var(--input-bg-disabled)] disabled:text-text-disabled disabled:hover:bg-[var(--input-bg-disabled)] disabled:hover:border-input`
+  - evidence: `ui/src/shadcn/components/ui/input.tsx:16` `"read-only:bg-[var(--input-bg-disabled)] read-only:hover:bg-[var(--input-bg-disabled)] read-only:hover:border-input read-only:focus-visible:`
+  - observed: read-only: and disabled: both resolve to --input-bg-disabled (#f9f9fb / #32333a) with hover suppressed; read-only additionally removes the focus ring although the field stays focusable and selectable. Consumers pass readOnly and disabled together (ScanCustomeHeaders) or rely on readOnly for an interactive trigger (Asse
+  - direction: Give read-only its own recipe (e.g. no fill, dashed or no border, keep focus ring) distinct from disabled, per Carbon/Atlassian/Material guidance.
+- **F6-12** · medium · focus-suppressed · Ghost Input variant ships no focus style; four consumers rely on the caret alone
+  - components: Input (ghost), InlineEditableText, InlineTitleInput, MobileAssetForm, AssetCreateUpdatePage
+  - evidence: `ui/src/shadcn/components/ui/input.tsx:7` `text-text-primary outline-none transition-[color,box-shadow,border-color,background-color]`
+  - evidence: `ui/src/novee/components/LabelPicker/LabelDraftRow.tsx:73` `variant="ghost"`
+  - observed: The base string is outline-none and the ghost variant adds only border-none, so a ghost Input has no hover, focus-visible or invalid treatment; InlineTitleInput, MobileAssetForm and AssetCreateUpdatePage each add a redundant focus-visible:ring-0. Only AssetCreateUpdatePage adds a replacement cue (F6-13).
+  - direction: Give the ghost variant a built-in focus cue (e.g. focus-visible underline via a 1px bottom box-shadow in --input-border-active) so consumers stop re-implementing or omitting it.
+- **F6-13** · medium · duplicate-local-styling · Asset-name header duplicated three times with diverging focus cue and typography
+  - components: MobileAssetForm, AssetCreateUpdatePage, InlineTitleInput
+  - evidence: `frontend/packages/ui/src/shadcn/components/ui/input.tsx:19` `ghost: "border-none placeholder:text-text-disabled disabled:text-text-disabled",`
+  - evidence: `frontend/packages/ui/src/shadcn/components/ui/input.tsx:7` `text-text-primary outline-none transition-[color,box-shadow,border-color,background-color]`
+  - observed: AssetCreateUpdatePage turns the separator brand on focus; MobileAssetForm copies the same label/Input/pen block but its separator is a static div; InlineTitleInput keeps the pen always visible and has no separator; font sizes/weights differ (font-scale-6 medium vs text-3xl semibold vs text-lg semibold).
+  - direction: Lift the title-input block (ghost Input + pen + focus-underline) into @novee/ui and use it in all three places.
+- **F6-14** · medium · focus-recipe-variance · Jira template editor strips the field ring, leaving a 1px border as a third focus recipe
+  - components: TemplateEditorForm, SelectTrigger, Input, Combobox
+  - evidence: `frontend/packages/webapp/src/lib/integrations/jira/wizard/TemplateEditorForm.tsx:401` `<SelectTrigger className={`${SELECT_CONTROL} hover:bg-surface-hover-subtle hover:border-input focus-visible:ring-0 data-[state=open]:ring-0``
+  - evidence: `frontend/packages/webapp/src/lib/integrations/jira/wizard/TemplateEditorForm.tsx:479` `// keeps a single 1px Brand900 stroke. `focus-visible:ring-0` drops`
+  - observed: Project/Issue-type selects and the Template-name input drop the DS 1px inset ring so focus and open are a bare 1px brand border; the Combobox 'Add Jira field' trigger in the same column is Button-based and keeps a 3px ring-ring/50 halo.
+  - direction: Fix the perceived 2px stroke in the DS (if 1px is wanted, change the Input recipe) rather than overriding per consumer, and align Combobox to the field recipe. · (flagged intentional in code comments)
+- **F6-17** · medium · duplicate-local-styling · Two RepositoryMultiSelect implementations with different trigger, open and focus recipes
+  - components: RepositoryMultiSelect (onboarding), RepositoryMultiSelect (common)
+  - evidence: `frontend/packages/webapp/src/lib/assets/onboarding/RepositoryMultiSelect.tsx:510` `outline-none hover:border-[var(--input-border-hover)] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled`
+  - evidence: `frontend/packages/webapp/src/lib/assets/onboarding/RepositoryMultiSelect.tsx:511` `open && "border-ring ring-[3px] ring-ring/50",`
+  - observed: Onboarding: button trigger, hover border, 3px/50% focus and open ring, cmdk rows with data-[selected] highlight. Common: div trigger, no hover, 1px solid outer ring when open, hand-rolled role=option rows with hover: only. Both re-implement the same selection-review chip list.
+  - direction: Keep one implementation, built on the DS MultiSelect trigger recipe. · (flagged intentional in code comments)
+- **F6-19** · medium · selected-equals-hover · AssetSelectDropdown selected option is a weaker tint than hover and collapses into hover
+  - components: AssetSelectDropdown
+  - evidence: `webapp/src/lib/common/components/AssetSelectDropdown/AssetSelectDropdown.tsx:187` `"flex items-center gap-2 mx-2 p-2 text-left hover:bg-muted transition-colors cursor-pointer rounded-sm",`
+  - evidence: `webapp/src/lib/common/components/AssetSelectDropdown/AssetSelectDropdown.tsx:188` `value === asset.id && "bg-muted/50",`
+  - observed: Selected = bg-muted/50 (#f9f9fb at 50%), hover = bg-muted (100%), so any hovered unselected row is stronger than the selected row and selected+hover is indistinguishable from hover; the check icon is the only persistent cue.
+  - direction: Use surface-selected (or a check + font-weight) for selected and keep hover as the lighter step, with an explicit selected+hover.
+- **F6-21** · medium · selected-equals-hover · Calendar: today, range-middle and plain hover all paint the same bg-accent
+  - components: Calendar, CalendarDayButton, Button (ghost)
+  - evidence: `ui/src/shadcn/components/ui/calendar.tsx:109` `"bg-accent text-accent-foreground rounded-md data-[selected=true]:rounded-none",`
+  - evidence: `ui/src/shadcn/components/ui/calendar.tsx:209` `"data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-middle=true]:bg-accent data-[range-m`
+  - observed: today (current), range_middle (selected span), range_start/end wrappers and the ghost day-button hover all resolve to --color-accent (#f2efff / #513a84; hover is /50 in dark). Today has no weight, dot or underline, so a hovered day is indistinguishable from today and from a day inside a range.
+  - direction: Mark today with a non-color cue (weight or dot) and give range-middle its own token (surface-selected) distinct from the hover tint.
+- **F6-23** · medium · open-state-variance · Open/expanded state drawn five different ways across triggers
+  - components: SelectTrigger, EditableCellTrigger, RepositoryMultiSelect (onboarding), RepositoryMultiSelect (common), AssetSelectDropdown, TemplateEditorForm
+  - evidence: `ui/src/shadcn/components/ui/select.tsx:26` `data-[state=open]:border-[var(--input-border-active)] data-[state=open]:ring-[1px] data-[state=open]:ring-inset data-[state=open]:ring-[var(`
+  - evidence: `ui/src/shadcn/components/ui/select.tsx:15` `* Select is a form control, so it shares Input's sizing scale (32 / 40 / 48 on an
+ * even 8px step) and Input's 1px inset focus ring — not B`
+  - observed: SelectTrigger open == its focus recipe + chevron flip; EditableCellTrigger open == its hover (white, grey border); onboarding repo trigger open == 3px halo + chevron rotate; common repo trigger == 1px outer ring; AssetSelectDropdown == 1px inset brand-900 + rotate; Jira selects == border only. Mechanisms: data-[state=o
+  - direction: Standardise open on the field focus recipe plus the shared TriggerChevron and let Radix data-state drive it.
+- **F6-25** · medium · focus-recipe-variance · Clear/remove adornments: 2px ring, 1px focus: ring, or browser default outline
+  - components: Search, SelectTriggerAffordance, AssetSelectDropdown, TagInput, TemplateTagInput
+  - evidence: `ui/src/novee/components/TagInput/TagInput.tsx:92` `className="ml-1 h-4 w-4 cursor-pointer hover:bg-primary-foreground/20 rounded-sm  -m-0.5 focus:outline-none focus:ring-1 focus:ring-primary-`
+  - evidence: `ui/theme.css:835` `@apply border-border outline-ring/50;`
+  - observed: Search clear uses a 2px/50% ring; the select-family clear (a span role=button) and the AssetSelectDropdown / TemplateTagInput remove buttons declare nothing and fall back to the UA outline; TagInput's default remove uses focus:ring-1 in white/50.
+  - direction: Give the clear/remove affordance one focus recipe in SelectTriggerAffordance and reuse it.
+- **F6-26** · medium · other · Slider thumb hover and focus-visible are identical (4px halo) with no drag state
+  - components: Slider
+  - evidence: `ui/src/shadcn/components/ui/slider.tsx:56` `className="border-primary ring-ring/50 block size-4 shrink-0 rounded-full border bg-surface-primary shadow-sm transition-[color,box-shadow] `
+  - observed: hover:ring-4 and focus-visible:ring-4 share ring-ring/50, so a hovered thumb reads as focused; no active/dragging treatment; 4px is a width used nowhere else.
+  - direction: Use a hover-strength ring (e.g. 2px subtle) and reserve the 3px halo for focus-visible/dragging.
+- **F6-27** · medium · other · aria-invalid recipe differs: solid 1px red ring vs 20%-alpha ring vs border-only vs text-only
+  - components: Input, SelectTrigger, Textarea, Checkbox, RadioGroupItem, Switch, OptimizablePromptField, ScanCustomeHeadersHeaderField, TemplateEditorForm
+  - evidence: `ui/src/shadcn/components/ui/switch.tsx:16` `"peer data-[state=checked]:bg-primary data-[state=unchecked]:bg-input dark:data-[state=unchecked]:bg-input/80 focus-visible:border-ring focu`
+  - evidence: `webapp/src/lib/integrations/jira/wizard/TemplateEditorForm.tsx:401` `<SelectTrigger className={`${SELECT_CONTROL} hover:bg-surface-hover-subtle hover:border-input focus-visible:ring-0 data-[state=open]:ring-0``
+  - observed: Input/SelectTrigger: red border + 1px solid inset red ring. Textarea/Checkbox/Radio/Switch: red border + ring-destructive/20 whose width is only set under focus-visible, so the ring appears only while focused and at 20% alpha. Prompt wrapper and tag box: border only. Jira form: red helper text only (ghost-style).
+  - direction: Adopt Input's solid invalid recipe for Textarea/Checkbox/Radio/Switch and the composite wrappers.
+- **F6-28** · medium · token-misuse · Border token used as a fill: dark:bg-input/30 rest fills and the Switch track
+  - components: Textarea, SelectTrigger, RadioGroupItem, Switch, Input, OptimizablePromptField
+  - evidence: `ui/theme.css:592` `--color-input: var(--input-border);`
+  - evidence: `ui/src/shadcn/components/ui/textarea.tsx:13` `aria-invalid:border-destructive dark:bg-input/30 flex field-sizing-content min-h-16 w-full rounded-md border bg-transparent`
+  - observed: Textarea, SelectTrigger, RadioGroupItem and the inline prompt wrapper keep shadcn's dark:bg-input/30 (--input-border #3f4046 at 30%) while Input, SegmentedDateInput and the prompt editor are transparent in dark; Switch's unchecked track is bg-input (#e0e1e6) — the border token as a fill — so in dark a text field and th
+  - direction: Remove dark:bg-input/* from the four controls (or add it to Input) and give the Switch track its own surface token.
+- **F6-29** · medium · dark-mode-collapse · Consumer hover overrides on SelectTrigger only take effect in light mode
+  - components: TemplateEditorForm, SelectTrigger, AssetSelectDropdown
+  - evidence: `ui/theme.css:1` `@custom-variant dark (&:is(.dark *));`
+  - evidence: `ui/src/shadcn/components/ui/select.tsx:95` `className={cn(selectTriggerVariants({ size }), TRIGGER_HOVER_FILL, className)}`
+  - observed: The consumer's hover:bg-surface-hover-subtle replaces hover:bg-accent via tailwind-merge, but TRIGGER_HOVER_FILL's dark:hover:bg-accent is a different variant stack with higher specificity, so in dark the Jira selects hover at brand-dark-300 (#513a84) while the Input beside them hovers at brand-dark-200 (#3c315b).
+  - direction: Drop the redundant dark:hover:bg-accent from TRIGGER_HOVER_FILL (bg-accent already flips) so overrides apply in both themes.
+- **F6-30** · medium · hardcoded-color · FieldLabel selected card uses bg-primary/5 alpha instead of surface-selected; description link hover uses CTA fill as text
+  - components: FieldLabel, FieldDescription
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:47` `// a fill-weight brand as text is 2.9:1 on the dark page. Same reason`
+  - evidence: `ui/theme.css:755` `--color-emphasis-link: var(--color-brand-800);`
+  - observed: A checked choice card is tinted with an ad-hoc 5%/10% alpha of brand-1000 rather than --color-surface-selected (brand-300 / brand-dark-300), producing a fourth 'selected purple'; FieldDescription links hover to text-primary (CTA fill), which theme.css documents as the wrong token for brand-as-text in dark (2.9:1).
+  - direction: Use bg-surface-selected + border-border-focus for the checked card and text-emphasis-link-hover for the link.
+- **F6-32** · medium · focus-recipe-variance · Sibling suggestion viewports: 2px inset solid ring vs no focus style
+  - components: OptimizablePromptField, OptimizablePromptEditor
+  - evidence: `ui/src/novee/components/OptimizablePromptField/OptimizablePromptField.tsx:181` `"focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring focus-visible:outline-none",`
+  - evidence: `ui/src/novee/components/OptimizablePromptField/OptimizablePromptEditor.tsx:138` `tabIndex={0}`
+  - observed: OptimizablePromptField's ScrollArea viewport paints a 2px solid inset brand ring (unique width/alpha), while OptimizablePromptEditor's equivalent focusable div declares nothing and shows the browser outline.
+  - direction: Share one scroll-region focus class (the control halo) between both.
+- **F6-33** · medium · focus-suppressed · RichTextEditor editable surface is outline-none with no focus style of its own
+  - components: RichTextEditor, OptimizablePromptEditor
+  - evidence: `ui/src/novee/components/RichTextEditor/RichTextEditor.tsx:58` `"nov-rich-text min-h-40 max-h-128 overflow-y-auto p-4 outline-none",`
+  - evidence: `ui/src/novee/components/OptimizablePromptField/OptimizablePromptEditor.tsx:70` `"focus-within:border-ring focus-within:ring-border-focus focus-within:ring-[1px] focus-within:ring-inset",`
+  - observed: The ProseMirror root removes the outline and theme.css defines only placeholder/typography rules for .nov-rich-text (lines 1348-1460); the focus ring exists solely because OptimizablePromptEditor wraps it in a focus-within box. A bare RichTextEditor has only the caret. No read-only/disabled visual either (only aria-rea
+  - direction: Move the bordered box with hover/focus-within/disabled recipe into RichTextEditor itself. · (flagged intentional in code comments)
+- **F6-34** · medium · focus-recipe-variance · Inline-edit controls signal focus by reveal, by purple fill, or not at all
+  - components: EditableTitle, InlineEditableText, EditableCellTrigger
+  - evidence: `ui/src/novee/components/EditableTitle/EditableTitle.tsx:157` `"cursor-text truncate-none whitespace-pre-wrap outline-none mr-2",`
+  - evidence: `ui/src/novee/components/EditableTitle/EditableTitle.tsx:187` `hover:bg-surface-hover focus-visible:outline-none focus-visible:ml-1.5 focus-visible:w-7 focus-visible:opacity-100 group-hover/title:ml-1.5 `
+  - observed: EditableTitle's pencil focuses by growing from w-0 (no ring) and its contentEditable heading is outline-none with no replacement; InlineEditableText's display button focuses with the hover tint (bg-accent) rather than a ring; EditableCellTrigger uses the 3px halo.
+  - direction: Use the control halo for the display/trigger state of all three and the field underline for the editing state. · (flagged intentional in code comments)
+- **F7-02** · medium · selected-equals-hover · PromptCard selected border equals its hover border with no other cue
+  - components: PromptLibraryDialog PromptCard
+  - evidence: `webapp/src/lib/prompt-library/PromptLibraryDialog.tsx:320` `aria-pressed={isSelected}`
+  - evidence: `webapp/src/lib/prompt-library/PromptLibraryDialog.tsx:333` `"focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",`
+  - observed: Both selected and hovered-unselected render border-border-hover (#8e55fd/#ae92ff) on bg-surface-primary; no fill, no check.
+  - direction: Add a fill (surface-selected) and/or a check/radio indicator to the selected card and keep hover border-only.
+- **F7-03** · medium · selected-equals-hover · AssessmentInitialStep selected CardLink equals hovered CardLink
+  - components: AssessmentInitialStep CardLink
+  - evidence: `webapp/src/lib/onboarding/components/ExternalAssessmentForm/ExternalAssessmentForm.tsx:53` `1: <AssessmentInitialStep selectedAssessmentType="external-surface" />,`
+  - evidence: `webapp/src/lib/onboarding/components/AssessmentInitialStep.tsx:60` `{isDemoTenant && (
+          <CardLink
+            href="/onboarding/external/1"`
+  - observed: Selected assessment type = border-border-hover; hovering the other card gives the same border; no aria.
+  - direction: Reuse the AssessmentTypeCard selected recipe (fill + indicator) or drop the selected border.
+- **F7-04** · medium · selected-equals-hover · SeveritySelect and IssueCategorySelect selected row uses the hover fill
+  - components: SeveritySelect option row, IssueCategorySelect option row
+  - evidence: `ui/src/shadcn/components/ui/select.tsx:165` `"focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='text-'])]:text-text-tertiary relative flex w-full cursor-default items-cen`
+  - evidence: `ui/src/shadcn/components/ui/select.tsx:172` `<SelectPrimitive.ItemIndicator>
+          <Icon name="check" className="size-4" />
+        </SelectPrimitive.ItemIndicator>`
+  - observed: selected = bg-muted (#f9f9fb/#32333a) == hover:bg-muted; a check icon (text-emphasis-link) is the only difference; no aria-selected.
+  - direction: Drop the selected fill (keep the check) or use surface-selected with aria-selected and a lighter hover.
+- **F7-05** · medium · selected-equals-hover · TicketDestinationPicker saved row fill equals ghost hover fill in both themes
+  - components: TicketDestinationPicker row
+  - evidence: `ui/theme.css:1` `@custom-variant dark (&:is(.dark *));`
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:41` `ghost: `text-accent-foreground hover:bg-accent dark:hover:bg-accent/50 ${ACTIVE_GHOST}`,`
+  - observed: bg-surface-selected = #f2efff/#513a84 and ghost hover:bg-accent = #f2efff/#513a84; the selected token is also used as a hover value for the disabled-saved case.
+  - direction: Mark the saved row via aria-checked + check only, or shift hover to surface-hover-subtle.
+- **F7-07** · medium · hover-family-mismatch · Icon buttons hover grey, purple, or purple-with-brand-text depending on feature area
+  - components: GithubIntegrationDialog back/close, GitlabIntegrationDialog back, IntegrationDialogPanel close, SingleIssuePage back, IssueProofsCard expand, ScreenshotGallery arrows, WhatsNewModal close, Integration
+  - evidence: `webapp/src/lib/settings/integrations/components/GithubIntegrationDialog.tsx:811` `className="inline-flex size-9 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-secondary"`
+  - evidence: `webapp/src/lib/settings/integrations/components/GithubIntegrationDialog.tsx:788` `className="-ml-2 inline-flex size-9 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-secondary"`
+  - observed: Settings/integrations icon buttons: surface-secondary (#f9f9fb/#32333a); issues/assessments icon buttons: surface-hover (#f2efff/#513a84); two close/back buttons: surface-hover-subtle + emphasis-link text.
+  - direction: Use IconButton variant=ghost everywhere and delete the local hover classes.
+- **F7-08** · medium · hover-family-mismatch · Six selectable option-card implementations use four hover recipes and three selected fills
+  - components: ReportKindCard, AssessmentTypeCard, AssetEnvironmentSection (x2), TestingCategoryTile, IntegrationStepper option, IssueMitigationDetails steps
+  - evidence: `webapp/src/lib/reports/components/CreateReportModal/ReportKindCard.tsx:69` `"hover:border-border-hover-muted",`
+  - evidence: `webapp/src/lib/reports/components/CreateReportModal/ReportKindCard.tsx:70` `"data-[state=checked]:border-border-hover data-[state=checked]:bg-surface-selected",`
+  - observed: Hover: muted brand border (#d4c6ff) / full brand border (#8e55fd) / neutral fill (#f9f9fb) / neutral fill. Selected fill: surface-selected brand-300 / surface-hover-subtle brand-200 / surface-hover brand-300 / none (TestingCategoryTile).
+  - direction: Promote one OptionCard (Radix radio/checkbox item) to @novee/ui with hover=border, selected=surface-selected+indicator, and migrate all six. · (flagged intentional in code comments)
+- **F7-09** · medium · hover-family-mismatch · Clickable cards/rows hover neutral in integrations, chat and fixes but purple on the dashboard and in asset details
+  - components: GithubIntegrationDialog org rows, IssueFixTab card, ChatMessages suggestion, ReportAssessmentHoverCard, dashboard widget cards, AssetDetailsSection triggers, VeeveeLogRows
+  - evidence: `webapp/src/lib/issues/single-issue/tabs/IssueFixTab.tsx:52` `className="flex items-center gap-3 w-full p-3 border border-border-primary rounded-md hover:bg-surface-secondary transition-colors duration-`
+  - evidence: `webapp/src/lib/chat/components/ChatMessages.tsx:72` `className="w-full rounded-xl border border-border-primary px-4 py-3 text-left text-sm text-content-secondary transition-colors hover:bg-surf`
+  - observed: Bordered card buttons: surface-secondary in issues/chat/integrations, surface-hover + border-hover on dashboard. GitHub/GitLab org rows tint on hover although the row itself is not clickable.
+  - direction: Reserve hover tints for interactive containers and use one family (surface-hover*) for them.
+- **F7-10** · medium · hover-family-mismatch · Inline detail-cell triggers hover with purple fill, opacity dip, or text lighten
+  - components: AssetDetailsSection criticality/environment triggers, StatusChangeDropdown chip trigger, SeverityChangeControl chip trigger, TestCaseIssuesFoundPopover trigger, AssetDetailsSection +N More
+  - evidence: `webapp/src/lib/assets/single-asset/components/overview/AssetDetailsSection.tsx:217` `className="flex items-center gap-2 hover:bg-surface-hover rounded px-1 -mx-1 cursor-pointer transition-colors disabled:opacity-50`
+  - evidence: `webapp/src/lib/assets/single-asset/components/overview/AssetDetailsSection.tsx:256` `className="flex items-center gap-2 hover:bg-surface-hover rounded px-1 -mx-1 cursor-pointer transition-colors disabled:opacity-50`
+  - observed: Same drawer grid: criticality/environment = bg-surface-hover (#f2efff/#513a84); status/severity chips = opacity-80; '+N More' = text lightens to text-secondary; 'Edit' = emphasis-link darkens.
+  - direction: Standardise detail-cell triggers on one ghost-style hover (surface-hover-subtle fill) and drop opacity/lighten variants.
+- **F7-11** · medium · hover-family-mismatch · Text links use five hover recipes, and some lighten while others darken
+  - components: SavedGuidelines, ReassessVerdictCard, AssetConfigurationDetails links, ContactSupportDialog docs link, AssetAuthCheckPoller, dashboard View-all links, NewAssetBreadcrumb, DiscoveredInAssessmentsHoverC
+  - evidence: `webapp/src/lib/prompt-library/SavedGuidelines.tsx:127` `className="cursor-pointer text-sm text-category-surface-brand hover:underline"`
+  - evidence: `webapp/src/lib/assets/single-asset/components/overview/AssetConfigurationDetails.tsx:327` `className="text-sm font-semibold text-text-primary underline hover:text-emphasis-link"`
+  - observed: hover:text-emphasis-link-hover (30 uses), hover:underline (30), both, text-primary->emphasis-link, foreground/80; plus hover:text-text-secondary (lighten, 14) vs hover:text-text-primary (darken, 12). SavedGuidelines colours a link with the chip-label token category-surface-brand.
+  - direction: Adopt the DS link recipe (emphasis-link + hover underline) and never lighten on hover.
+- **F7-13** · medium · focus-recipe-variance · Dozens of hand-rolled buttons rely on the UA outline instead of the DS ring
+  - components: PageTopBarProjects, HelpMenu, QuickAI suggestions, ChatHistory, ChatMessages, IntegrationStepper option, IssueMitigationDetails steps, IssueFixTab, NewAssetButton, StatusChangeDropdown trigger, AssetD
+  - evidence: `webapp/src/app/globals.css:16` `.recharts-wrapper * {
+    outline: none;`
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:27` `outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]`
+  - observed: No focus-visible/outline classes; focus falls back to the browser outline coloured by the base outline-ring/50 rule, so width/offset/shape differ from every DS control.
+  - direction: Build these on Button/DropdownMenuItem/Switch or apply one shared focus utility.
+- **F7-16** · medium · missing-state · Hand-rolled switch, radio cards and chip radios lack hover and/or focus styling
+  - components: UsernamePasswordRole switch, UserRoleCredentialsFields switch, IntegrationStepper option, ContactSupportDialog chip radios, TestCaseIssuesFoundPopover rows, CredentialTrustedCaCell
+  - evidence: `webapp/src/lib/common/components/UsersRoleAuthenticationForm/UsernamePasswordRole.tsx:181` `className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors ${isOn ? "bg-action-primary-cta" : "bg-surfa`
+  - evidence: `ui/src/shadcn/components/ui/switch.tsx:16` `focus-visible:border-ring focus-visible:ring-ring/50 inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent shad`
+  - observed: Switch: no hover, no focus-visible, ring-0 on knob. IntegrationStepper radio: no focus-visible. Chip radios: no hover. Popover rows: tabIndex=0 div without focus-visible.
+  - direction: Replace with DS Switch/RadioGroup or add the shared hover + focus utilities.
+- **F7-17** · medium · selected-mechanism-mismatch · Single-select option role is encoded five different ways with different visuals
+  - components: ReportKindCard, AssessmentTypeCard, IntegrationStepper option, PromptCard, IssueMitigationDetails steps, ChatHistory, AssessmentInitialStep
+  - evidence: `webapp/src/lib/reports/components/CreateReportModal/ReportKindCard.tsx:69` `"hover:border-border-hover-muted",
+        "data-[state=checked]:border-border-hover data-[state=checked]:bg-surface-selected",`
+  - evidence: `webapp/src/lib/reports/components/CreateReportModal/ReportKindCard.tsx:17` `* NOTE: deliberately local to reports for now. It's a generic pattern the
+ * design system doesn't have yet`
+  - observed: Radix data-[state=checked]; role=radio + aria-checked + prop; role=button + aria-pressed; bare isActive/selected props with no ARIA. Each pairs with a different fill/border recipe (F7-08).
+  - direction: One DS OptionCard on Radix RadioGroup/Checkbox with data-state driving the visuals. · (flagged intentional in code comments)
+- **F7-19** · medium · current-vs-selected-conflation · Current-step and current-page use selected/focus recipes or are dimmer than siblings
+  - components: IssueMitigationDetails step rail, NewAssetFlowShell StepIndicator, NewAssetBreadcrumb
+  - evidence: `webapp/src/lib/issues/single-issue/remediations/details/IssueMitigationDetails.tsx:143` `? "bg-surface-hover-subtle border border-border-hover"`
+  - evidence: `ui/src/novee/components/NovTabs/NovTabs.tsx:309` `data-[state=active]:bg-surface-hover-subtle data-[state=active]:border-border-hover data-[state=active]:text-emphasis-link`
+  - observed: Step rail current = the option-card selected look with no aria-current; StepIndicator current dot borrows --color-border-focus; breadcrumb current page is text-tertiary, lighter than the clickable 'New asset' link beside it.
+  - direction: Define a current-location recipe (border-hover + weight, aria-current) distinct from selection, and never dim the current crumb below its links. · (flagged intentional in code comments)
+- **F7-20** · medium · open-state-variance · Popover/dropdown triggers show open state as hover colour, border only, or nothing
+  - components: NewAssetButton, SearchableSelectPopover, SeverityThresholdSelect, PageTopBarProjects, StatusChangeDropdown, AssetDetailsSection triggers
+  - evidence: `webapp/src/lib/settings/notifications/components/SeverityThresholdSelect.tsx:63` `"flex items-center gap-1.5 h-8 px-2 rounded-md border border-input bg-background text-xs w-[140px]",`
+  - evidence: `webapp/src/lib/settings/notifications/components/SeverityThresholdSelect.tsx:64` `"hover:bg-accent hover:text-accent-foreground transition-colors",`
+  - observed: open == hover (NewAssetButton); open = 1px brand border (SearchableSelectPopover); chevron swap only; no open styling (PageTopBarProjects, StatusChangeDropdown, AssetDetailsSection).
+  - direction: Apply the DS open recipe (border + inset ring or ghost active fill) to every trigger via data-[state=open]. · (flagged intentional in code comments)
+- **F7-21** · medium · disabled-variance · Disabled/read-only expressed as opacity-50, opacity-60, muted text, or pointer-events-none in different areas
+  - components: NewAssetButton, FacetCheckboxRow, TestingCategoryTile, IntegrationTile, SlackTile, DemoIntegrationTile, TicketDestinationPicker, ScopeRules, settings page CTAs
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:27` `disabled:pointer-events-none disabled:opacity-50`
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:32` `disabled:bg-[var(--btn-primary-bg-disabled)] disabled:opacity-100`
+  - observed: Owned tally: opacity-50 x9, cursor-not-allowed x6, pointer-events-none x4, opacity-60 x2, text-text-disabled x2, plus a data-[disabled]:opacity-100 override.
+  - direction: Use DS disabled tokens (fill/text-disabled) for buttons and one opacity value for containers. · (flagged intentional in code comments)
+- **F7-22** · medium · duplicate-local-styling · DS button, menu-item, radio and option-card recipes are re-implemented locally in 30+ places
+  - components: ScanViewDocs, settings page CTAs, HelpMenu, PageTopBarProjects, QuickAI, SeverityThresholdSelect, SeveritySelect, IssueCategorySelect, StatusChangeDropdown radio, UpdateStatusDialog radio, AssetEnviro
+  - evidence: `ui/src/novee/components/OptionCard/OptionCard.tsx:15` `selected: "border-border-hover bg-surface-selected",`
+  - evidence: `webapp/src/lib/assets/onboarding/AssetTypeGallery/AssetTypeGallery.tsx:4` `import { cn, IconAvatar, OptionCard } from "@novee/ui";`
+  - observed: ScanViewDocs pastes the full ghost buttonVariants string; 6 page.tsx files hand-roll the primary CTA (losing DS focus ring + disabled fill); 10 dialogs pass the primary classes to a Button that already has them; three radios replace the DS dot with a 6px border; AssetEnvironmentSection exists twice byte-identical; six 
+  - direction: Replace pasted strings with buttonVariants/DS components and promote OptionCard + the thick-border radio (or drop it) into @novee/ui. · (flagged intentional in code comments)
+- **F7-27** · medium · selected-no-noncolor-cue · Persistent selections shown by hue alone (chip radios, Jira tabs, step rail)
+  - components: ContactSupportDialog area chips, IntegrationSetupDialog Jira tabs, IssueMitigationDetails steps, IssueRemedationsDetails steps
+  - evidence: `webapp/src/lib/support/components/ContactSupportDialog.tsx:315` `aria-checked={area === a.value}`
+  - evidence: `webapp/src/lib/support/components/ContactSupportDialog.tsx:329` `color={`
+  - observed: Checked chip = brand palette vs slate palette (bg/border/text hue only); active tab = tint + brand text + brand border, same weight; current step = tint + border.
+  - direction: Add weight, a check glyph or an indicator bar to each selected state.
+- **F8-02** · medium · selected-equals-hover · KPI 'active' tokens equal KPI hover on fill AND border; tabs-nav/filter inherit the same fill collision
+  - components: --kpi-bg-active, --kpi-bg-hover, --kpi-border-active, --kpi-border-hover, --tabs-nav-item-bg-active, --tabs-nav-item-bg-hover, --btn-filter-bg-active
+  - evidence: `ui/theme.css:515` `--kpi-bg-hover: var(--color-surface-hover);`
+  - evidence: `ui/theme.css:516` `--kpi-bg-active: var(--color-surface-selected);`
+  - observed: kpi-bg-hover/active both → #f2efff/#513a84; kpi-border-hover (border-hover brand-900/800) and kpi-border-active (border-focus brand-900/800) are the same hex in both themes. tabs-nav bg hover/active likewise; only tabs-nav-item-surface-hover (#8149eb) vs -selected (#6f42c5) differ, by 1.2:1.
+  - direction: Rebind *-bg-active to a dedicated selected token and *-border-active to a selected border distinct from border-hover/border-focus.
+- **F8-06** · medium · pressed-vs-selected-conflation · 'active' names four different states across three hue families; the audit script formalises selected≡active
+  - components: --btn-filter-bg-active, --kpi-bg-active, --tabs-nav-item-bg-active, --nav-item-bg-active, --btn-ghost-bg-active, --input-border-active, --tabs-browsing-item-bg-active, --color-ring
+  - evidence: `ui/theme.css:424` `--btn-filter-bg-active: var(--color-surface-selected);`
+  - evidence: `ui/theme.css:408` `--btn-ghost-bg-active: var(--color-surface-emphasis);`
+  - observed: -active means: persistent selected, purple (filter/kpi/tabs-nav → surface-selected); current page, neutral (nav → surface-tertiary); pressed-or-selected ghost, neutral (ghost → surface-emphasis, consumed via aria-pressed); focus (input-border-active → border-focus, and --color-ring derives from it); lifted card (browsi
+  - direction: Rename to explicit roles (-selected, -current, -pressed, -focus) and retire STATE_ALIAS so the audit can check selected ≠ hover. · (flagged intentional in code comments)
+- **F8-07** · medium · missing-state · No tokens for pressed (mousedown), current (aria-current), selected+hover, focus-ring width/offset, or a selected indicator
+  - components: --color-surface-selected, --color-ring, --btn-filter-surface-active, --tabs-nav-item-surface-selected
+  - evidence: `ui/src/shadcn/components/ui/sidebar.tsx:483` `hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foregr`
+  - evidence: `ui/theme.css:408` `--btn-ghost-bg-active: var(--color-surface-emphasis);`
+  - observed: grep: zero `aria-current:` utilities in ui or webapp although aria-current is set in four components; `active:` styles a background in only 2 ui + 2 webapp sites, each improvising (hover token, hover-strong at 40%). The only selected foregrounds are theme.css 430 and 500; no width/offset token backs the 1/2/3/4px, offs
+  - direction: Introduce --color-surface-selected-hover, --color-surface-pressed, --color-surface-current (or alias current→selected explicitly) and --focus-ring-width/--focus-ring-offset.
+- **F8-12** · medium · dark-mode-collapse · Dark mode merges state roles: hover == selected == primary-disabled == brand chip (#513a84); disabled surface == border == menu hover (#3f4046); hover border == focus == hover-muted == link (#ae92ff)
+  - components: --color-surface-hover, --color-surface-selected, --color-action-primary-cta-disabled, --color-category-bg-brand, --color-surface-disabled, --color-border-primary, --color-action-secondary-cta-hover, -
+  - evidence: `ui/theme.css:253` `--color-surface-hover: var(--color-brand-300);`
+  - evidence: `ui/theme.css:258` `--color-surface-selected: var(--color-brand-300);`
+  - observed: `node scripts/audit-tokens.mjs --report` prints 12 'identity collapses in dark' groups, including: `#513a84 ← --color-surface-hover, --color-surface-selected, --color-action-primary-cta-disabled, --color-category-bg-brand`; `#3f4046 ← --color-surface-disabled, --color-border-primary, --color-border-secondary, --color-a
+  - direction: Promote the collapse check from report-only to a failing check for state-role pairs (hover/selected/disabled/focus) and give those roles their own dark steps. · (flagged intentional in code comments)
+- **F8-18** · medium · focus-recipe-variance · Focus and selected borders share one hue: --kpi-border-active = border-focus, --btn-primary-border-focus = border-hover, filter-active border differs from kpi-active border
+  - components: --btn-primary-border-focus, --btn-secondary-border-focus, --btn-filter-border-active, --kpi-border-active, --color-border-hover, --color-border-focus, --color-border-hover-muted
+  - evidence: `ui/theme.css:433` `--btn-filter-border-active: var(--color-border-hover-muted);`
+  - evidence: `ui/theme.css:292` `--color-border-hover-muted: var(--color-brand-600);`
+  - observed: border-hover and border-focus are the same brand-900 in light and brand-800 in dark, so a hovered input border, a focused input border and a selected KPI border are one colour; primary button's 'focus' border is literally the hover token. Two selected-filter roles use different borders: filter brand-600 (#d4c6ff, 1.39:
+  - direction: Reserve border-focus for focus only, give selected its own border token, and make focus a ring (offset) rather than a border swap on selectable controls. · (flagged intentional in code comments)
+- **F8-19** · medium · open-state-variance · No 'open' token: trigger-open renders as purple fill, neutral fill, or a focus ring depending on the component
+  - components: --color-accent, --color-table-row-hover, --color-surface-secondary, --color-border-focus
+  - evidence: `ui/src/novee/components/NotificationsPanel/NotificationsPanel.tsx:93` `className="rounded-md transition-colors hover:bg-accent data-[state=open]:bg-accent"`
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridColumnManager.tsx:210` `hover:bg-surface-secondary data-[state=open]:bg-surface-secondary data-[state=open]:text-text-primary`
+  - observed: data-[state=open] → bg-accent (purple, 3 sites), bg-surface-secondary (neutral, 1), bg-table-row-hover (purple, 2 rows), or a 1px focus-coloured ring (3 sites, one frozen brand-900). ui has 58 data-[state=open]: utilities and webapp 14, none backed by a token.
+  - direction: Define open = the component's hover fill held (one token alias) and reserve the focus ring for focus.
+- **F8-20** · medium · current-vs-selected-conflation · aria-current is set but never styled; current page and selected items share the hover tint
+  - components: --nav-item-bg-active, --color-sidebar-accent, --color-surface-selected
+  - evidence: `ui/src/novee/components/TablePagination/TablePagination.tsx:73` `aria-current={page === currentPage ? "page" : undefined}`
+  - evidence: `ui/src/shadcn/components/ui/pagination.tsx:62` `"w-8 box-border flex items-center justify-center data-[active=true]:text-emphasis-link",`
+  - observed: Zero `aria-current:` utilities in ui or webapp; current is styled via isActive props / data-[active=true] / aria-pressed, each a different attribute for the same visual (brand-300). OptionCard switches between aria-pressed and aria-current by element type while rendering one look.
+  - direction: Add a current token/alias and style it through `aria-current:` so the attribute and the visual cannot drift. · (flagged intentional in code comments)
+- **F8-21** · medium · selected-no-noncolor-cue · Token layer offers no non-colour selected cue; consumers using bg-surface-selected alone show selection by tint only
+  - components: --color-surface-selected, --btn-filter-surface-active, --tabs-nav-item-surface-selected
+  - evidence: `ui/theme.css:253` `--color-surface-hover: var(--color-brand-300);`
+  - evidence: `ui/theme.css:258` `--color-surface-selected: var(--color-brand-300);`
+  - observed: The only selected foregrounds are two text tokens (430, 500); no weight, indicator-bar or icon token exists, so webapp sites that reach for bg-surface-selected get a 1.08:1 tint (brand-300 on white) as the whole cue — the same tint as hover.
+  - direction: Pair --color-surface-selected with a documented companion (border token + weight) and expose it as one recipe/class.
+- **F8-22** · medium · disabled-variance · Three disabled mechanisms coexist (opacity-50, dedicated fill, text-only) and primary-disabled collapses onto hover/selected in dark
+  - components: --color-action-primary-cta-disabled, --btn-primary-bg-disabled, --btn-filter-bg-disabled, --btn-secondary-bg-disabled, --color-surface-disabled, --input-bg-disabled
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:27` `disabled:pointer-events-none disabled:opacity-50`
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:32` `disabled:bg-[var(--btn-primary-bg-disabled)] disabled:opacity-100`
+  - observed: Button base fades to 50% opacity; default/destructive override with a token fill at 100%; filter/secondary disabled keep the rest fill and only grey the text (allow-listed as flat). --color-surface-disabled is slate-600 light but slate-900 dark (= border-primary). Primary-disabled dark = #513a84 = surface-hover/selecte
+  - direction: Pick one disabled mechanism per family (opacity for ghost/outline, fill for solid) and give cta-disabled its own dark step. · (flagged intentional in code comments)
+- **F1-10** · low · selected-equals-hover · NotificationBellButton active fill is the hover fill
+  - components: NotificationBellButton
+  - evidence: `ui/src/novee/components/NotificationBellButton/NotificationBellButton.tsx:11` `"relative flex items-center justify-center rounded-md hover:bg-accent transition-colors cursor-pointer",`
+  - evidence: `ui/src/novee/components/NotificationBellButton/NotificationBellButton.tsx:38` `isActive && "bg-accent",`
+  - observed: Both states are bg-accent (#f2efff / #513a84); hovered-inactive and active differ only by the bell glyph swapping light→solid.
+  - direction: Give the open state a distinct fill/border (surface-selected + border-hover) or rely on aria-expanded styling.
+- **F1-28** · low · pressed-vs-selected-conflation · 'active' tokens mean persistent selected; no mousedown state exists anywhere
+  - components: Button, KPI tokens, nav tokens
+  - evidence: `ui/theme.css:408` `--btn-ghost-bg-active: var(--color-surface-emphasis);`
+  - evidence: `ui/theme.css:424` `--btn-filter-bg-active: var(--color-surface-selected);`
+  - observed: Every token suffixed -active (btn-ghost, btn-filter, kpi, nav-item, tabs-nav-item) feeds a persistent selected/current look; no component in the family styles `active:` (mousedown).
+  - direction: Rename -active tokens to -selected and reserve 'pressed'/'active' for a transient mousedown step if one is added. · (flagged intentional in code comments)
+- **F1-29** · low · token-misuse · 'surface' means text in btn-* tokens but background in semantic tokens; one recipe mixes both
+  - components: Button ACTIVE_FILTER
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:12` `"aria-pressed:text-[var(--btn-filter-surface-active)] aria-pressed:hover:text-[var(--btn-filter-surface-active)] " +`
+  - evidence: `ui/theme.css:427` `/* emphasis-link, not action-primary-cta: this is brand as a FOREGROUND, and the`
+  - observed: --btn-filter-surface-active is a TEXT colour (emphasis-link) while --color-surface-selected is a FILL; the ACTIVE_FILTER string applies `text-[…surface-active]` next to `bg-[…bg-active]`, and `--color-surface-selected` is also documented as the info-banner fill.
+  - direction: Rename btn-*-surface tokens to btn-*-fg and give banners their own fill alias. · (flagged intentional in code comments)
+- **F1-31** · low · hover-family-mismatch · Applied-filter chips are neutral grey pills while applied facet pills are brand-tinted
+  - components: DataGridFilterChips, FacetToggleChip, QuickFilter
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridFilterChips.: grey pill, 12px text,`
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridFilterChips.tsx:363` `className="inline-flex shrink-0 cursor-default rounded-[6px] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"`
+  - observed: The 'Severity: High' chip row is surface-tertiary (#f0f0f3 / #60646c) rounded-full with no hover on the body and text-only hover on its ×; the toolbar's applied FacetToggleChip is surface-selected purple rounded-md. 'Clear Filters' is a bare text button.
+ · (flagged intentional in code comments)
+- **F1-32** · low · hover-family-mismatch · Badge hover mixes opacity fades with a purple tint; secondary hover is invisible
+  - components: Badge
+  - evidence: `ui/src/shadcn/components/ui/badge.tsx:13` `"border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90",`
+  - evidence: `ui/src/shadcn/components/ui/badge.tsx:15` `"border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",`
+  - observed: default/secondary/destructive hover by /90 opacity (secondary = page colour at 90% = no change); outline hovers to bg-accent purple. Only applies when rendered as an anchor.
+  - direction: Use the Button hover tokens per variant instead of opacity.
+- **F1-34** · low · token-misuse · --color-surface-selected doubles as an info-banner and static panel fill
+  - components: theme.css, GenerateTotp
+  - evidence: `ui/theme.css:310` `Info banners use --color-surface-selected */`
+  - evidence: `ui/theme.css:258` `--color-surface-selected: var(--color-brand-300);`
+  - observed: The token that marks a toggle as selected is also the documented fill for informational banners and is used as a static code-panel background, so 'selected' and 'informational' are the same purple.
+  - direction: Add --color-accent-info-light for banners and keep surface-selected for selection only. · (flagged intentional in code comments)
+- **F2-24** · low · token-misuse · --menu-item-bg-hover (neutral) exists with a dark-mode rationale but no menu uses it
+  - components: DropdownMenuItem, SelectItem, webapp SidebarAccountMenu/HelpMenu
+  - evidence: `ui/theme.css:451` `--menu-item-bg-hover: var(--color-action-secondary-cta-hover);`
+  - evidence: `ui/theme.css:730` `in both themes — so every dropdown hover painted a pale slab under the`
+  - observed: The Menu component-token block defines a slate-400 #e8e8ec/#3f4046 hover and the dark override comment speaks of 'every dropdown hover', yet DropdownMenuItem/SelectItem use bg-accent (purple) and webapp menus use bg-surface-secondary; grep finds no consumer of --menu-item-bg-hover.
+  - direction: Either point --menu-item-bg-hover at surface-hover and have DropdownMenuItem consume it, or delete the token.
+- **F2-25** · low · pressed-vs-selected-conflation · `active` means 'filter applied' on DataGridFilterTrigger but 'aria-pressed' on Button
+  - components: DataGridFilterTrigger, Button
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridFilterTrigger.tsx:9` `active: boolean;`
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridFilterTrigger.tsx:41` `aria-hidden`
+  - observed: Both props are named `active` and both describe a persistent 'has a value' state, but Button emits aria-pressed + ACTIVE_FILTER tokens while DataGridFilterTrigger emits only text-primary + a dot and no ARIA.
+  - direction: Emit aria-pressed from DataGridFilterTrigger too (same prop, same semantics). · (flagged intentional in code comments)
+- **F2-29** · low · current-vs-selected-conflation · Project switcher marks the current project with the selected idiom and no aria-current
+  - components: webapp PageTopBarProjects
+  - evidence: `webapp/src/lib/shell/components/top-bar/PageTopBarProjects.tsx:140` `className={projectId === project.id ? "font-medium" : ""}`
+  - evidence: `webapp/src/lib/shell/components/top-bar/PageTopBarProjects.tsx:149` `{projectId === project.id && (`
+  - observed: The current project (navigation context) uses font-medium + an emphasis-link check, i.e. the same look as a picked option, on plain <button>s with no aria-current/aria-checked; SidebarAccountMenu's theme list uses role=radio + aria-checked for an equivalent list.
+  - direction: Add aria-current="true" (or render as a DropdownMenuRadioGroup) and keep the check glyph.
+- **F2-30** · low · other · Popover panel chrome (radius, border, shadow) varies per picker
+  - components: PopoverContent, DropdownMenuContent, HoverCardContent, DateFilter, webapp IssueCategorySelect, DataGridColumnFilter, ColorButton
+  - evidence: `ui/src/shadcn/components/ui/popover.tsx:58` `z-50 origin-(--radix-popover-content-transform-origin) rounded-md border p-4 shadow-md outline-hidden",`
+  - evidence: `ui/src/shadcn/components/ui/hover-card.tsx:76` `ring-foreground/10 bg-popover text-popover-foreground w-64 rounded-lg p-2.5 text-sm shadow-md ring-1 duration-100`
+  - observed: rounded-md+border+shadow-md (popover/dropdown/select), rounded-lg+ring-1+shadow-md (hover-card), rounded-[10px]+shadow-popover (DateFilter, IssueCategorySelect, SeveritySelect), rounded-xl (DataGrid filters, ColorButton). Not an interactive state, but the open panel is the 'open' presentation of the trigger.
+  - direction: Expose radius/shadow as PopoverContent variants and remove per-consumer overrides.
+- **F3-03** · low · pressed-vs-selected-conflation · Sidebar uses the hover token for mousedown (active:) so pressed has no feedback
+  - components: SidebarMenuButton, SidebarMenuSubButton
+  - evidence: `ui/src/shadcn/components/ui/sidebar.tsx:483` `active:bg-sidebar-accent active:text-sidebar-accent-foreground`
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:17` `const ACTIVE_GHOST =`
+  - observed: active: (mousedown) = bg-sidebar-accent = hover hex. The button family already distinguishes a 'pressed/selected' fill (--btn-ghost-bg-active → surface-emphasis, neutral) from hover, but the sidebar reuses hover for both mousedown and current.
+  - direction: Use the surface-hover triad (subtle/hover/strong) so active: steps one level stronger than hover, and keep 'active' naming for persistent selection out of the mousedown variant.
+- **F3-15** · low · current-vs-selected-conflation · aria-current="page" is the brightest crumb in the DS Breadcrumb and the dimmest in NewAssetBreadcrumb
+  - components: Breadcrumb, NewAssetBreadcrumb
+  - evidence: `ui/src/novee/components/Breadcrumb/Breadcrumb.tsx:111` `"flex min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden rounded-md text-sm font-normal text-text-tertiary transition-colors`
+  - evidence: `webapp/src/lib/assets/components/NewAssetFlowShell/NewAssetFlowShell.tsx:181` `<nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-text-secondary">`
+  - observed: DS: ancestors text-tertiary, current font-semibold text-foreground. Webapp new-asset flow: link text-secondary (hover text-primary), current text-tertiary — the current page is less prominent than the link beside it.
+  - direction: Render NewAssetBreadcrumb with the DS Breadcrumb's current-crumb classes (or the DS component with a link-capable ancestor) so aria-current always carries the weight cue.
+- **F3-23** · low · pressed-vs-selected-conflation · 'active' names five different states across the family
+  - components: SidebarMenuButton, NovTabs More trigger, PaginationLink, Stepper, StatusStepper, WizardStep
+  - evidence: `ui/src/shadcn/components/ui/sidebar.tsx:528` `data-active={isActive}`
+  - evidence: `ui/src/novee/components/NovTabs/NovTabs.tsx:263` `data-active={activeHidden || undefined}`
+  - observed: data-active / isActive = current page (sidebar, pagination), = 'selected tab is hidden' (NovTabs More), = current step (Stepper, Wizard), = in-progress status (StatusStepper); active: = mousedown (sidebar); --btn-ghost-bg-active = aria-pressed toggle. Visual outcomes differ in every case.
+  - direction: Rename data-active→data-current (page/step) and style via aria-* selectors so the attribute, the token and the visual agree. · (flagged intentional in code comments)
+- **F3-25** · low · dark-mode-collapse · Dark mode collapses brand text, bar, ring and link into one hex and halves the ghost hover
+  - components: NovTabsTrigger, VeeVeeTabStrip, PaginationLink, SidebarMenuButton
+  - evidence: `ui/src/shadcn/components/ui/button.tsx:41` `ghost: `text-accent-foreground hover:bg-accent dark:hover:bg-accent/50 ${ACTIVE_GHOST}`,`
+  - evidence: `ui/src/novee/components/SelectTriggerAffordance/trigger-hover.ts:7` `"hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent";`
+  - observed: Light: category-surface-brand #8e55fd, emphasis-link #8149eb, border-hover #8e55fd — three roles, two hues. Dark: all #ae92ff, so the segmented/pill/underline text distinction (F3-10) and the bar-vs-text distinction vanish. Separately, ghost (PaginationLink) hover is bg-accent/50 in dark (≈#3b3159) while the sidebar's 
+  - direction: Decide role separation by non-hue means (weight, bar, fill) so it survives the dark collapse, and align ghost dark hover with the sidebar's strength. · (flagged intentional in code comments)
+- **F3-26** · low · other · shadcn TabsTrigger dark selected state uses the border token as a 30% fill
+  - components: shadcn TabsTrigger
+  - evidence: `ui/src/shadcn/components/ui/tabs.tsx:45` `dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-text-tertiary`
+  - evidence: `ui/theme.css:592` `--color-input: var(--input-border);`
+  - observed: Light selected = bg-background (surface) + shadow; dark selected = bg-input/30 (--input→border-primary #3f4046 at 30%) + border-input. Different mechanism and token family per theme; rest text also flips to text-tertiary only in dark.
+  - direction: Either retire shadcn Tabs in favour of NovTabs or restate its selected fill with one surface token in both themes.
+- **F3-28** · low · other · Sidebar accent-foreground classes are no-ops because the token equals the base foreground
+  - components: SidebarMenuButton, SidebarMenuSubButton, SidebarMenuBadge, SidebarMenuAction
+  - evidence: `ui/theme.css:463` `--nav-item-surface: var(--color-text-primary);`
+  - evidence: `ui/theme.css:462` `--nav-item-bg-active: var(--color-surface-tertiary);`
+  - observed: Every hover:/active:/data-[active=true]:/peer-*:text-sidebar-accent-foreground resolves to the same --nav-item-surface as text-sidebar-foreground (#393547/#ffffff), so none of them change anything; the fill is the sole cue.
+  - direction: Either point sidebar-accent-foreground at a distinct token (e.g. emphasis-link for the current item) or remove the dead classes.
+- **F3-30** · low · focus-not-visible-trigger · shadcn TabsTrigger and NovTabs pill stack ring + border + outline on focus-visible
+  - components: shadcn TabsTrigger, NovTabsTrigger pill
+  - evidence: `ui/src/novee/components/NovTabs/NovTabs.tsx:302` `focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring focus-visible:ring-[3px] focus-visible:outline-1`
+  - evidence: `ui/src/novee/components/NovTabs/NovTabs.tsx:304` `focus-visible:outline-none focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-ring`
+  - observed: Three concurrent indicators (1px border-ring, 3px ring-ring/50, 1px outline-ring) versus the button base's two (border + ring) and the sidebar's one (ring-2).
+  - direction: Drop the outline pair and use the family-wide focus utility (F3-13).
+- **F4-01** · low · selected-no-noncolor-cue · shadcn TableRow selected state is a 1.05:1 neutral tint with no other cue
+  - components: Table (shadcn) / TableRow
+  - evidence: `ui/src/shadcn/components/ui/table.tsx:80` `"data-[state=selected]:bg-muted border-b transition-colors",`
+  - evidence: `webapp/src/lib/issues/components/CvssInfoPopover/CvssInfoPopover.tsx:193` `<TableRow`
+  - observed: data-[state=selected]:bg-muted resolves to --color-surface-secondary #f9f9fb on a #ffffff row (light) and #32333a on #25272d (dark). No font-weight, border, check or indicator accompanies it.
+  - direction: Route TableRow selected to the same --color-surface-selected token and non-color cue (checkbox or weight) the DataGrid uses, or delete the dead data-state=selected recipe since no consumer sets it.
+- **F4-06** · low · hover-family-mismatch · Four header-cell hover recipes: neutral token, purple-subtle, neutral/50, text-only
+  - components: Table (shadcn) / TableHead, DataGridHeaderCell, SortableHeader, NetworkTrafficPanel / SortableHeaderCell
+  - evidence: `ui/src/shadcn/components/ui/table.tsx:93` `"hover:bg-table-head-column-hover text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap`
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridHeaderCell.tsx:141` `"hover:bg-surface-hover-subtle",`
+  - observed: TableHead → surface-secondary #f9f9fb/#32333a (neutral). DataGridHeaderCell → brand-200 #f9f8ff/#3c315b (purple). SortableHeader → surface-secondary at 50% (≈#fcfcfd). NetworkTraffic header → no bg, text-secondary→text-primary. The component token --table-head-column-bg-hover was created for this role and only the shad
+  - direction: Point every sortable header at --table-head-column-bg-hover (neutral) so header hover is one family distinct from body-row hover. · (flagged intentional in code comments)
+- **F4-19** · low · token-misuse · FileExplorer selected row uses the HOVER token (bg-surface-hover) instead of bg-surface-selected; resize handle uses a FOCUS token for hover
+  - components: FileExplorer / TreeRow, FileExplorer / resize separator
+  - evidence: `ui/src/novee/components/FileExplorer/FileExplorer.tsx:537` `"bg-surface-hover text-category-surface-brand font-semibold hover:bg-surface-hover";`
+  - evidence: `ui/src/novee/components/FileExplorer/FileExplorer.tsx:475` `before:content-[''] hover:bg-border-focus"`
+  - observed: Selected and hover tokens are hex-identical today (brand-300), so the misuse is invisible, but any future split of surface-selected from surface-hover will leave the tree's selected row on the hover colour. hover:bg-border-focus paints the focus hue for a pointer hover.
+  - direction: Swap to bg-surface-selected for the selected row and border-hover for the separator hover.
+- **F4-25** · low · token-misuse · DataGridRow bypasses the --table-row-* component tokens that exist for it
+  - components: DataGridRow, DataGridDataRow
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridDataRow.tsx:94` `"group/row flex items-stretch border-b border-border-primary",`
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridHeaderCell.tsx:140` `bg-[var(--table-header-bg,var(--color-bg-primary))]`
+  - observed: Rest bg/border/text come from bg-bg-primary / border-border-primary / text-text-primary while --table-row-bg, --table-row-border, --table-row-surface (theme.css:441-445) resolve to the same hexes and are only bridged for hover. Only CollapsibleGroupHeader reads --table-row-height.
+  - direction: Either bridge and use the table-row tokens consistently or delete the dead ones.
+- **F4-26** · low · aria-mechanism-mismatch · Visual selected/expanded states are not mirrored by the matching ARIA on the row element
+  - components: DataGridRow, FileExplorer / TreeRow, NetworkTrafficRow
+  - evidence: `ui/src/novee/components/FileExplorer/FileExplorer.tsx:450` `<ul className="w-max min-w-full py-1" role="tree">`
+  - evidence: `ui/src/novee/components/FileExplorer/FileExplorer.tsx:649` `aria-expanded={node.isDirectory ? expanded : undefined}`
+  - observed: DataGridRow tints via data-selected but sets no aria-selected on role=row (only the checkbox is checked). TreeRow puts aria-selected on a <button> whose <li> is role=none for files (aria-selected is not valid on button). NetworkTrafficRow is role=button wrapping a checkbox.
+  - direction: Set aria-selected on role=row / role=treeitem elements and move NetworkTrafficRow to role=row with an inner expand button, as its comment proposes. · (flagged intentional in code comments)
+- **F4-27** · low · duplicate-local-styling · webapp AssetNameCell re-implements AssessmentNameCell's group-hover underline recipe verbatim
+  - components: AssetNameCell (webapp), AssessmentNameCell
+  - evidence: `webapp/src/lib/common/components/TableCells/AssetNameCell.tsx:44` `// the far right of the grid and off-screen at common widths (#7446).`
+  - evidence: `ui/src/novee/components/AssessmentNameCell/AssessmentNameCell.tsx:12` `// the far right of the grid and off-screen at common widths (#8133).`
+  - observed: Same classes, same named-group pattern, same (Draft) marker, maintained in two packages; neither renders a focusable element.
+  - direction: Extract one DS NameCell (icon + name + draft marker) and have AssetNameCell wrap it.
+- **F4-28** · low · token-misuse · RequestResponseInspector selected tab underline uses the border-hover token for a selected state; no focus style
+  - components: RequestResponseInspector / ViewTabs
+  - evidence: `ui/src/novee/components/NovTabs/NovTabs.tsx:304` `data-[state=active]:border-border-hover data-[state=active]:text-category-surface-brand data-[active]:border-border-hover data-[active]:text`
+  - evidence: `ui/theme.css:835` `@apply border-border outline-ring/50;`
+  - observed: The persistent aria-selected tab borrows --color-border-hover for its underline (same hex as border-focus today) and the <button role=tab> has no focus-visible class.
+  - direction: Use a selected/brand token for the underline and add the DS focus ring. · (flagged intentional in code comments)
+- **F4-29** · low · open-state-variance · Expanded/open rows signal it four ways (rotate chevron, swap chevron, swap caret+folder, nothing)
+  - components: DataGridRow (grouped header), CollapsibleGroupHeader, NetworkTrafficRow, FileExplorer / TreeRow, LogRow (webapp)
+  - evidence: `webapp/src/lib/assessments/manager/single-assessment/components/VeeveeLogRows.tsx:398` `name={expanded ? "chevron-down" : "chevron-right"}`
+  - evidence: `ui/src/novee/components/DataGrid/components/DataGridRow.tsx:119` `label. One icon rotated (not swapped) for a smooth transition. */}`
+  - observed: Group headers rotate one chevron (0.2s); NetworkTrafficRow swaps chevron glyphs; the tree swaps caret glyphs and the folder icon; LogRow only sets aria-expanded. None change the row surface, which is consistent, but the icon treatment differs.
+  - direction: Adopt the rotating chevron everywhere a row expands. · (flagged intentional in code comments)
+- **F5-17** · low · token-misuse · Hover/selected tokens used as static rest fills and identity markers
+  - components: CustomPageCard, CustomPageEditor, GenerateTotp, QuickAI, WhatsNewModal badge, MobileAssetForm hint, AssessmentWizardSummaryView day toggle
+  - evidence: `webapp/src/lib/reports/components/CustomizeReport/CustomPageCard.tsx:43` `<div className="relative rounded-xl border-2 border-border-hover bg-surface-primary shadow-sm p-8">`
+  - evidence: `webapp/src/lib/reports/components/CustomizeReport/CustomPageEditor.tsx:36` `<div className="rounded-xl border-2 border-border-hover bg-surface-primary shadow-sm p-6 flex flex-col gap-4">`
+  - observed: Static, non-interactive panels and a 2px 'custom page' border use --color-border-hover / --color-surface-selected / --color-surface-hover-subtle. theme.css itself sanctions surface-selected as an info-banner fill, so the token no longer means 'selected'.
+  - direction: Mint brand-tint surface/border tokens for static emphasis (e.g. --color-surface-brand-subtle, --color-border-brand) and keep hover/selected tokens for interaction. · (flagged intentional in code comments)
+- **F5-19** · low · token-misuse · Workflow canvas draws selection with the focus token and maps keyboard focus to selection
+  - components: FlowNodeCard, WorkflowCanvas
+  - evidence: `ui/src/novee/components/FlowNodeCard/FlowNodeCard.tsx:23` `true: "inset-ring-border-focus",`
+  - evidence: `ui/src/novee/components/FlowNodeCard/FlowNodeCard.tsx:24` `false: "inset-ring-border-secondary hover:inset-ring-border-hover-muted",`
+  - observed: Selected nodes use --color-border-focus; the canvas selects whatever node receives :focus-visible, so there is no separate focus indicator and a node that is selected but not focused looks the same as one that is focused.
+  - direction: Give FlowNodeCard a selected fill/weight cue and keep the ring for focus-visible. · (flagged intentional in code comments)
+- **F5-23** · low · other · Drag-over highlight is weaker than plain hover, and the MobileAssetForm copy makes them equal
+  - components: FileUploadDropZone, MobileAssetForm upload row
+  - evidence: `ui/src/novee/components/FileUploadDropZone/FileUploadDropZone.tsx:616` `// Boxed mode (default): visible border + rounded corners + drag`
+  - evidence: `ui/src/novee/components/FileUploadDropZone/FileUploadDropZone.tsx:617` `// highlight via border. Bare mode keeps the same drag-and-drop`
+  - observed: DS drop zone: drag-over = brand-200 (#f9f8ff), row hover = brand-300 (#f2efff) — the transient drop target is lighter than hover. MobileAssetForm re-implements the zone with drag-over = hover = brand-300, so dragging a file over it changes only the border.
+  - direction: Use surface-hover-strong (brand-400) for drag-over in the DS zone and route MobileAssetForm through FileUploadDropZone. · (flagged intentional in code comments)
+- **F5-24** · low · token-misuse · Container cards bypass utilities or use non-existent classes
+  - components: RuleCard, DashboardWidget
+  - evidence: `ui/src/novee/components/RuleCard/RuleCard.tsx:37` `"flex flex-col gap-2 rounded-md border border-[var(--color-border-primary)] bg-[var(--color-bg-primary)] p-3",`
+  - evidence: `ui/src/novee/components/DashboardWidget/DashboardWidget.tsx:32` `<div className="text-secondary-text text-sm first-letter:capitalize mb-4">`
+  - observed: RuleCard spells tokens as arbitrary var() values instead of border-border-primary / bg-bg-primary; DashboardWidget's text-secondary-text matches no theme token (text-text-secondary exists) so the title renders in inherited colour.
+  - direction: Use the named utilities and fix the typo.
+- **F5-27** · low · aria-mechanism-mismatch · Visual selection without matching ARIA: menuitem with no aria-checked, role=radio without radiogroup, rails with no aria-current
+  - components: TicketDestinationPicker, IntegrationStepper, IssueRemedationsDetails, IssueMitigationDetails, StartAssessmentToggleCard
+  - evidence: `webapp/src/lib/issues/components/TicketDestinationPicker.tsx:147` `role="menuitem"`
+  - evidence: `webapp/src/lib/issues/components/TicketDestinationPicker.tsx:164` `<span className="sr-only"> (selected)</span>`
+  - observed: TicketDestinationPicker shows a selected fill on role=menuitem (should be menuitemradio + aria-checked; it compensates with sr-only text). IntegrationStepper's role=radio buttons have no role=radiogroup ancestor (grep found none). The remediation rails show an active tint with no aria-current/aria-pressed. StartAssessm
+  - direction: Pair every visual selected state with the matching ARIA state (aria-checked / aria-pressed / aria-current) via a shared component.
+- **F6-02** · low · token-misuse · Same field focus hue reached by three different token spellings
+  - components: Input, SelectTrigger, SegmentedDateInput, Textarea, OptimizablePromptEditor, OptimizablePromptField, AssetSelectDropdown
+  - evidence: `ui/src/shadcn/components/ui/textarea.tsx:12` `"focus-visible:border-ring focus-visible:ring-border-focus focus-visible:ring-[1px] focus-visible:ring-inset",`
+  - evidence: `ui/src/novee/components/OptimizablePromptField/OptimizablePromptEditor.tsx:70` `"focus-within:border-ring focus-within:ring-border-focus focus-within:ring-[1px] focus-within:ring-inset",`
+  - observed: Input/SelectTrigger/SegmentedDateInput use var(--input-border-active); Textarea and both OptimizablePrompt wrappers use border-ring + ring-border-focus; AssetSelectDropdown uses ring-brand-900. All #8e55fd in light; only the last diverges in dark.
+  - direction: Pick one spelling (the --input-border-active chain) and alias the others away.
+- **F6-22** · low · focus-recipe-variance · focus:/has-focus: used instead of focus-visible on calendar dropdown and TagInput chip remove
+  - components: Calendar, TagInput
+  - evidence: `ui/src/shadcn/components/ui/calendar.tsx:69` `"relative has-focus:border-ring border border-input shadow-xs has-focus:ring-ring/50 has-focus:ring-[3px] rounded-md",`
+  - evidence: `ui/src/shadcn/components/ui/calendar.tsx:73` `"absolute bg-popover inset-0 opacity-0",`
+  - observed: The month/year dropdown root rings on :focus (mouse click paints the 3px halo) and the chip remove button rings on :focus with a 1px white/50 ring; everything else in the family keys on focus-visible.
+  - direction: Switch to has-focus-visible: / focus-visible: and the shared control ring.
+- **F6-31** · low · token-misuse · Suggestion card: primitive brand-500/1000 border and surface-selected as a header wash
+  - components: OptimizablePromptField, OptimizablePromptEditor
+  - evidence: `ui/src/novee/components/OptimizablePromptField/OptimizablePromptField.tsx:157` `<div className="w-full overflow-hidden rounded-lg border border-brand-500 bg-surface-primary shadow-sm dark:border-brand-1000">`
+  - evidence: `ui/src/novee/components/OptimizablePromptField/OptimizablePromptField.tsx:164` `border-b border-border-primary bg-gradient-to-r from-surface-selected to-transparent px-3.5 py-2.5`
+  - observed: The card border is a raw brand-500 (#e0d6ff) with a hand-picked dark swap, and its header gradient starts from --color-surface-selected, i.e. the selected-state token doubles as an informational wash (theme.css records this as deliberate).
+  - direction: Introduce an --color-accent-info-light surface and a tokenised brand border for banners so surface-selected stays a state token. · (flagged intentional in code comments)
+- **F6-36** · low · other · Placeholder colour differs between Input variants
+  - components: Input (outline), Input (ghost), SegmentedDateInput
+  - evidence: `ui/src/shadcn/components/ui/input.tsx:19` `ghost: "border-none placeholder:text-text-disabled disabled:text-text-disabled",`
+  - evidence: `ui/src/shadcn/components/ui/input.tsx:7` `selection:bg-primary selection:text-primary-foreground placeholder:text-text-tertiary file:inline-flex file:h-7 file:border-0`
+  - observed: Outline inputs and SegmentedDateInput use placeholder:text-text-tertiary; ghost inputs use text-text-disabled (#b9bbc6 / #8b8d98), so an empty title field reads as disabled.
+  - direction: Use text-text-tertiary for the ghost placeholder as well.
+- **F7-23** · low · token-misuse · Hover/selected/focus tokens used as rest fills, and selected fills built from hover tokens
+  - components: QuickAISection, DemoIntegrationTile, WhatsNewModal badge, day pills, ChatHistory, IntegrationStepper, TicketDestinationPicker, NewAssetFlowShell, SavedGuidelines
+  - evidence: `ui/theme.css:250` `/* Brand hover triad, subtle → strong. Anything that tints on hover picks one of`
+  - evidence: `ui/theme.css:253` `--color-surface-hover: var(--color-brand-300);`
+  - observed: surface-hover(-subtle) as static panel/badge/avatar fills and as the selected fill (ChatHistory, IntegrationStepper) while --color-surface-selected exists; surface-selected used as a hover value; border-focus used for a current-step dot; chip-label token used as link colour.
+  - direction: Add a non-interactive brand tint token for decoration and use surface-selected (not surface-hover) for selected fills.
+- **F7-25** · low · dark-mode-collapse · ReportKindCard hover border and checked border collapse to the same brand-800 in dark
+  - components: ReportKindCard, integration tile Connect Now buttons, SavedGuidelines link
+  - evidence: `webapp/src/lib/reports/components/CreateReportModal/ReportKindCard.tsx:69` `"hover:border-border-hover-muted",`
+  - evidence: `webapp/src/lib/reports/components/CreateReportModal/ReportKindCard.tsx:70` `"data-[state=checked]:border-border-hover data-[state=checked]:bg-surface-selected",`
+  - observed: border-hover-muted = #d4c6ff light / #ae92ff dark; border-hover = #8e55fd light / #ae92ff dark, so hover edge == checked edge in dark (fill still differs). text-category-surface-brand (#8e55fd) and text-emphasis-link (#8149eb) both become #ae92ff in dark.
+  - direction: Give border-hover-muted its own dark step (brand-dark-400) or keep hover on the fill ladder instead of the border. · (flagged intentional in code comments)
+- **F7-26** · low · pressed-vs-selected-conflation · 'active' naming covers current step, selected card, run state and DS pressed
+  - components: IssueMitigationDetails, NewAssetFlowShell, VeeveeLogRows, day pills
+  - evidence: `webapp/src/lib/issues/single-issue/remediations/details/IssueMitigationDetails.tsx:136` `const isActive = index === activeStepIndex;`
+  - evidence: `webapp/src/lib/assets/components/NewAssetFlowShell/NewAssetFlowShell.tsx:128` `active: "border border-border-focus bg-surface-primary text-emphasis-link",`
+  - observed: Webapp 'active'/isActive means current or selected; DS --btn-ghost-bg-active (neutral slate-300) means aria-pressed. The selected day pill suppresses hover (hover:bg-action-primary-cta) so pressed-and-hovered gives no feedback.
+  - direction: Name props/classes current/selected/pressed explicitly and reserve 'active' for aria-pressed.
+- **F7-29** · low · other · Inconsistent utility spelling for the same token (arbitrary var() vs named utility)
+  - components: StatusChangeDropdown submit, ScanViewDocs
+  - evidence: `webapp/src/lib/issues/single-issue/components/StatusChangeDropdown.tsx:278` `className="px-3 py-1.5 h-auto text-sm font-normal bg-action-primary-cta hover:bg-[var(--color-action-primary-cta-hover)] text-text-on-accent`
+  - evidence: `webapp/src/lib/settings/users/components/InviteUsersDialog.tsx:592` `className="bg-action-primary-cta hover:bg-action-primary-cta-hover"`
+  - observed: Same hover token written as hover:bg-[var(--color-action-primary-cta-hover)] and hover:bg-action-primary-cta-hover (22 uses), both on DS Buttons that already carry hover:bg-[var(--btn-primary-bg-hover)].
+  - direction: Remove the redundant classes and standardise on named utilities.
+- **F8-08** · low · token-misuse · --color-surface-selected doubles as the info-banner fill and as static decoration
+  - components: --color-surface-selected
+  - evidence: `ui/theme.css:310` `Info banners use --color-surface-selected */`
+  - evidence: `ui/src/novee/components/InfoBanner/InfoBanner.
+  - observed: A state token is used as a static info tint; there is no --color-accent-info-light sibling to the three other *-light banner tokens (311-313).
+  - direction: Add --color-accent-info-light (brand-300 today) and point InfoBanner/GenerateTotp at it so surface-selected is free to change. · (flagged intentional in code comments)
+- **F8-09** · low · token-misuse · 'surface' means background in the semantic layer and text colour in every component family
+  - components: --color-surface-primary, --color-surface-selected, --btn-filter-surface-active, --kpi-surface, --menu-item-surface, --table-row-surface, --tabs-nav-item-surface-selected
+  - evidence: `ui/theme.css:334` `/* Category Surface (text on category elements) */`
+  - evidence: `ui/theme.css:335` `--color-category-surface-brand: var(--color-brand-900);`
+  - observed: --color-surface-* are fills; --*-surface and --*-surface-active/-selected/-hover are text. The audit script needs a comment to explain the inversion; Storybook's design-tokens.json exports only layers 1-2 so the component-layer meaning is never surfaced to designers.
+  - direction: Rename component foreground tokens to --*-text-* · (flagged intentional in code comments)
+- **F8-11** · low · focus-suppressed · focus-visible:ring-0 / focus:ring-0 and `focus:` (mouse-firing) recipes survive because no guardrail covers them
+  - components: --color-ring
+  - evidence: `ui/src/shadcn/components/ui/input.tsx:16` `"read-only:bg-[var(--input-bg-disabled)] read-only:hover:bg-[var(--input-bg-disabled)] read-only:hover:border-input read-only:focus-visible:`
+  - evidence: `webapp/src/lib/integrations/jira/wizard/TemplateEditorForm.tsx:479` `// keeps a single 1px Brand900 stroke. `focus-visible:ring-0` drops`
+  - observed: focus-visible:ring-0 appears 3× in ui and 7× in webapp; `focus:` (not focus-visible) ring recipes at 30-50% alpha fire on mouse click. The base `outline-ring/50` rule (theme.css 835) is defeated by `outline-none` on 85 ui/webapp elements, of which not all add a ring.
+  - direction: Lint for `ring-0`/`outline-none` without a sibling focus-visible ring, and forbid bare `focus:` ring recipes. · (flagged intentional in code comments)
+- **F8-13** · low · token-misuse · Guardrail gap: neither audit script nor ESLint can see a hover-family or selected==hover mismatch
+  - components: --color-surface-hover, --color-surface-secondary, --color-accent, --color-muted
+  - evidence: `ui/scripts/audit-tokens.mjs:253` `const STATE_ALIAS = { selected: "active" };`
+  - evidence: `ui/scripts/audit-tokens.mjs:251` `// Two names for one state: `--tabs-nav-item-bg-active` is the fill under`
+  - observed: scan-colors.mjs checks only ramp-step classes, stepless white/black, var(--color-X-N) primitives and literals — `hover:bg-surface-secondary` next to `hover:bg-accent` are both semantic and pass silently. audit-tokens.mjs checks fg/bg contrast inside one family and reports (never fails) dark collapses; it has no 'hover 
+  - direction: Add a state-role check to audit-tokens (hover ≠ selected ≠ disabled per family, same role → same semantic) and an ESLint/regex rule that allowlists hover/selected utilities per role. · (flagged intentional in code comments)
+- **F8-14** · low · missing-state · Storybook has no pseudo-states addon, no interaction-state matrix story, and Foundations documents no state roles
+  - components: --color-surface-hover, --color-surface-selected, --color-ring
+  - evidence: `ui-storybook/.storybook/main.ts:12` `addons: [`
+  - evidence: `ui-storybook/.storybook/main.ts:16` `"@storybook/addon-a11y",`
+  - observed: Addons: chromatic, docs, onboarding, a11y, vitest — no storybook-addon-pseudo-states (not in any package.json or lockfile). Across 139 story files only 13 exports match Selected|Active|Hover|AllStates|Interactive|Pressed|Focus and only one `AllStates` exists; 4 stories drive hover/tab via play functions. Foundations/Co
+  - direction: Add storybook-addon-pseudo-states and a Foundations/States story that renders every interactive component in rest/hover/selected/selected+hover/focus/disabled in both themes.
+- **F8-16** · low · duplicate-local-styling · Most component-layer state tokens are never consumed; components restyle states from semantic tokens directly, so theme.css's per-component state spec is fiction
+  - components: --kpi-bg-hover, --kpi-bg-active, --nav-item-bg-active, --menu-item-bg-hover, --tabs-nav-item-bg-active, --tabs-nav-item-surface-selected, --tabs-browsing-item-bg-inactive-hover, --btn-filter-bg-hover,
+  - evidence: `ui/src/novee/components/KPI/KPI.tsx:65` `(hoverable || onClick) && "cursor-pointer hover:bg-surface-hover",`
+  - evidence: `ui/src/novee/components/KPI/KPI.tsx:62` `// surface-hover (brand-300, the pale purple) — the same hover every`
+  - observed: Grep over ui/src + webapp/src (excluding theme.css): 0 consumers for --kpi-*, --nav-item-*, --menu-item-*, --tabs-nav-item-*, --tabs-browsing-*, --btn-filter-bg-hover, --btn-secondary-bg-hover, --input-bg-hover, --table-row-bg-hover (reached only via bridge). NovTabs pill selected uses bg-surface-hover (the HOVER seman
+  - direction: Either wire components to their family tokens (bg-[var(--kpi-bg-active)] etc.) or delete the dead component tokens and document the semantic-level rule instead. · (flagged intentional in code comments)
+- **F8-17** · low · token-misuse · The static brand chip fill (--color-category-bg-brand) is identical to hover and selected in both themes
+  - components: --color-category-bg-brand, --chip-bg-brand, --color-surface-hover, --color-surface-selected, --color-surface-hover-strong, --color-category-bg-brand-hover
+  - evidence: `ui/theme.css:345` `--color-category-bg-brand: var(--color-brand-300);`
+  - evidence: `ui/theme.css:253` `--color-surface-hover: var(--color-brand-300);`
+  - observed: brand-300 light and the 42% mix dark are the same formula as surface-hover/selected (#f2efff / #513a84); chip hover (brand-400 / 52%) equals --color-surface-hover-strong. A non-interactive chip sitting on a hovered or selected row vanishes into it.
+  - direction: Separate the chip fill from the interaction tint by one ladder step, or require a border on brand chips placed on tinted surfaces. · (flagged intentional in code comments)
+- **F8-23** · low · hardcoded-color · CTA attention animations hard-code brand-ish literals outside the token layer
+  - components: --swish-from, --swish-to, glowPulse
+  - evidence: `ui/theme.css:963` `--swish-from: #7AC4FF;`
+  - evidence: `ui/theme.css:964` `--swish-to: #A07EFF;`
+  - observed: btn-swish and btn-glow (hover/intro effects on primary CTAs) use literal #7AC4FF/#A07EFF and rgba(142,91,255) that no .dark override reaches; btn-halo (1118-1143) correctly uses brand-700/blue tokens.
+  - direction: Alias the swish/glow colours to brand/blue tokens like btn-halo does.
