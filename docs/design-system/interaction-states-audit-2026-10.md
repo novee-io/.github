@@ -4,6 +4,41 @@ Dated snapshot, 2026-10-14. Covers hover, pressed, selected, current, open, focu
 
 Scope note: the design system is the uilib. Figma is not a reference for this work and no Figma to-dos appear here.
 
+## Update 2026-10-15: neutral fills (supersedes the tint values below)
+
+The decision is to use neutral fills. Where this report still shows a brand-tint selected fill (the token table in 5.1 and the diff after it), the values in this block win. A runnable subset is in [`neutral-fills-trial.patch`](neutral-fills-trial.patch): it applies to `novee-io/novee` `main` and changes four files (`theme.css`, `sidebar.tsx`, `DataGridRow.tsx`, `InfoBanner.tsx`). `audit-tokens --check` and `scan-colors --check` pass on it.
+
+Resolved values from that patch (each is `color-mix` of slate ink into its ground, so `audit-tokens` can resolve and check them):
+
+| Token | Light | Dark | Contrast vs page, light / dark |
+|---|---|---|---|
+| `surface-hover` | `#f6f6f7` | `#32343a` | 1.08 / 1.20 |
+| `surface-hover-strong` | `#f2f2f2` | `#3b3d42` | n/a |
+| `surface-selected` | `#ebecec` | `#484a4f` | 1.18 / 1.68 |
+| `surface-selected-hover` | `#e5e5e6` | `#515257` | 1.26 / 1.92 |
+| `surface-pressed` | `#dadadb` | `#5c5d62` | 1.40 / 2.27 |
+| `surface-secondary-hover` (sidebar ground) | `#f1f1f3` | `#4b4b52` | 1.07 / 1.45 vs `#f9f9fb` and `#32333a` |
+| `surface-secondary-selected` | `#e8e8eb` | `#55565b` | 1.16 / 1.72 vs the ground |
+| `surface-secondary-selected-hover` | `#e2e2e4` | `#5f6065` | n/a |
+| `surface-secondary-pressed` | `#dbdcde` | `#6b6c71` | n/a |
+| `indicator-selected` | `#8149eb` | `#c3b0ff` | 5.14 / 7.80 vs page; 4.20 / 3.83 on the sidebar selected fill |
+| `accent-info-light` (new, keeps the old banner tint) | `#f2efff` | `#3c315b` | n/a |
+
+What the trial covers: the neutral surface ladder, a sidebar current bar plus selected and pressed fills, a 2 px bar on selected grid rows, and the info banner moved off `surface-selected`. Hover edges stay purple for now because moving `border-hover` also needs the roughly 33 selected-border sites updated; chips, cards, tabs and menu cues come with the component phase.
+
+One finding from running it: the first dark hover value (13% white) landed within 1.04:1 of the table row border, and `audit-tokens` failed the build. The dark ladder was lowered (hover 6%, selected 16%, selected-hover 20%, pressed 25%), which is why dark neutral fills are quieter than the preview's first pass.
+
+To try it on your machine:
+
+```bash
+cd novee && git checkout -b try/neutral-state-fills
+git apply path/to/neutral-fills-trial.patch
+cd frontend && pnpm install        # needs GITHUB_TOKEN and FONTAWESOME_PACKAGE_TOKEN in .env
+cd packages/ui && pnpm audit:theme
+cd ../ui-storybook && pnpm storybook   # http://localhost:6006; Theme toolbar switches light, dark, side by side
+```
+
+
 ## 0. Summary
 
 The inconsistency you see ("some items hover purple, some grey, and selected looks different everywhere") is real, measurable, and mostly caused by five decisions in `theme.css`, not by individual components:
@@ -159,14 +194,14 @@ Nine pickers (account menu, help menu, project switcher, severity and category s
 
 `scripts/audit-tokens.mjs` checks token arithmetic and dark-mode collapses, and already reports the `surface-hover` equals `surface-selected` collapse group, but nothing fails on it. `scripts/scan-colors.mjs` flags frozen primitives but says nothing about which hover or focus token a component reaches for. ESLint has no rule on state classes. Storybook has no pseudo-states addon and only a handful of state stories (`Selected` ×4, `Active` ×3, `AllStates` ×1), so the inconsistencies are not visible in the rendered source of truth.
 
-## 4. Proposed state model: transient is neutral, persistent is brand
+## 4. Proposed state model: neutral fills, purple only in the cue
 
 Three candidate models were drafted independently (neutral surfaces with a brand cue; a monotonic purple ladder; and transient-neutral, persistent-brand), scored by three judges with different lenses (accessibility and standards, engineering and migration cost, product perception), and the winner was finalised with the best ideas grafted from the other two. The scores were close (156, 146, 144 of 210). The winner keeps brand presence exactly where the product has to say "this is where you are" or "this is what you chose", removes it from pointer feedback, and lands with the least churn because most of the ~100 purple-hover call sites change value through the token layer without a code edit.
 
 ### 4.1 Principles
 
 1. **Classify every state by duration.** Transient states (hover, mousedown, a trigger held open, the keyboard highlight in a menu) are feedback about the pointer: one or two steps on the slate scale, never the brand hue.
-2. **Persistent states are facts about the model.** Selected, current page, toggle on and checked use a brand tint fill plus exactly one brand non-color cue (a 2 px edge, a 2 px bar or underline, a check glyph, or the checked box) plus a dedicated selected-plus-hover step so the cue survives the pointer.
+2. **Persistent states are facts about the model.** Selected, current page, toggle on and checked use a neutral fill one step above hover, exactly one brand non-color cue (a 2 px edge, a 2 px bar or underline, a check glyph, or the checked box), and a dedicated selected-hover step so the cue survives the pointer.
 3. **Focus keeps purple and nothing else does.** A 2 px solid outline in `--color-ring` with a 2 px gap, on `:focus-visible` only, never a border swap, never removed. Inside clipped containers the ring sits inset with a 1 px page-colored inner stroke so it stays at 3:1 on any fill.
 4. **Two grounds, two ladders.** Targets on the page use `surface-hover`, `surface-pressed`, `surface-selected` and `surface-selected-hover`. Targets on the secondary ground (sidebar, tab tracks, filled group headers, the network-traffic card) use `surface-secondary-*` rungs mixed over that ground, so every rung is visible where it is used.
 5. **Two cue tokens, neither of which is the ring.** `--color-border-selected` is the edge of a selected pill, segment, tab or card on the page. `--color-indicator-selected` is the bar, underline, check glyph, radio dot, and every edge on a secondary ground. Both differ from `--color-ring` in both themes.
@@ -175,7 +210,7 @@ Three candidate models were drafted independently (neutral surfaces with a brand
 8. **One attribute per state, styled from the attribute.** `aria-pressed`, `aria-selected`, `aria-checked`, `aria-expanded`, `aria-current="page"`, `data-[state=…]`: never a prop-only class string. Tailwind compiles bare `aria-current:` to `[aria-current="true"]`, so the bracket form `aria-[current=page]:` is required.
 9. **Tokens name the role.** Every component `-active` token becomes `-selected`, `-current`, `-pressed` or `-focus` with a deprecated alias for one release. `.dark` overrides stay on semantic tokens. No two state roles share a dark hex.
 
-**One deliberate departure from the industry majority.** Consensus rule 4 says the selected fill should stay neutral with brand only in the cue. This model keeps a brand tint for persistent fills (the Material secondary-container and Atlassian `background.selected` tradition) for three reasons: the slate ladder has no spare neutral rung that is one step past hover and still more than 1.1:1 from pressed; `surface-selected` already exists as a documented brand tint with more than forty consumers and keeps its name and role; and the tint is never the only cue, so it only has to differ from hover. The neutral alternative remains a two-token swap (`surface-selected` and `surface-selected-hover` to slate-500 and slate-600) if design rejects the tint. This is open decision 1 in section 6.
+**Decision, 2026-10-15: fills are neutral.** The first draft kept a brand tint for selected fills. That was dropped. Hover, selected, selected plus hover and pressed are all slate steps, which matches the industry majority (consensus rule 4). Purple is spent on the cue and the focus ring only. The resolved values are in the update block below.
 
 ### 4.2 The ladder
 
@@ -188,8 +223,8 @@ Contrast ratios were computed with WCAG 2.x relative luminance; `color-mix` valu
 | hover (secondary ground) | `--color-surface-secondary-hover` | `#ececef` (1.12:1 vs `#f9f9fb`) | `#42434a` (1.28:1 vs `#32333a`) | none | `hover:bg-sidebar-accent` |
 | hover-strong | `--color-surface-hover-strong` = slate-400 | `#e8e8ec` | `#484a4f` | none | a control nested in an already-hovered surface; drag-over |
 | pressed | `--color-surface-pressed` = slate-700; CTA pressed tokens | `#cdced6` (1.57:1); primary `#613da9` | `#515257` (1.92:1) | none; lasts the press | `active:`, suppressed while `data-[state=open]` |
-| selected | `--color-surface-selected` = brand-400 + `--color-border-selected` or `--color-indicator-selected` + `--color-text-selected` | fill `#eae3ff` (1.24:1, 1.09:1 vs hover); edge `#8149eb` (5.14:1); label `#6f42c5` (5.19:1) | fill `#553c8d` (1.72:1, 1.25:1 vs hover); edge `#8e55fd` (3.46:1); label `#d4c6ff` (5.51:1) | one of: 2 px edge, 2 px bar or underline, check glyph, checked box, inset ring on solid buttons; plus `font-medium` | `aria-selected`, `aria-pressed`, `aria-checked`, `data-[state=on|active|checked]`, `data-[selected]` |
-| selected + hover | `--color-surface-selected-hover` = brand-500 | `#e0d6ff` (1.11:1 vs selected) | `#6041a1` (1.15:1 vs selected) | unchanged | `aria-pressed:hover:` etc.; tabs and segments take none |
+| selected | `--color-surface-selected` (neutral) + `--color-border-selected` or `--color-indicator-selected` + the normal label colour | fill `#ebecec` (1.18:1 vs page, 1.10:1 vs hover); bar or edge `#8149eb` (5.14:1) | fill `#484a4f` (1.68:1, 1.40:1 vs hover); bar or edge `#c3b0ff` (7.80:1) | one of edge, bar, check, checked box, inset ring on solid buttons; plus `font-medium` | `aria-selected`, `aria-pressed`, `aria-checked`, `data-[state=on]` |
+| selected + hover | `--color-surface-selected-hover` (neutral) | `#e5e5e6` (1.06:1 vs selected) | `#515257` (1.14:1 vs selected) | unchanged | `aria-pressed:hover:` etc.; tabs and segments take none |
 | current (sidebar) | `--nav-item-bg-current` = `surface-secondary-selected` + `--nav-item-indicator-current` 2 px bar | fill `#ded0fc`, bar `#8149eb` (4.89:1 vs ground) | fill `#574188`, bar `#c3b0ff` (6.57:1 vs ground) | bar + `font-medium` + solid icon | `aria-current="page"` styled via `aria-[current=page]:` |
 | open | hover fill held; field triggers hold the focus stroke | `#f0f0f3` or stroke `#8e55fd` | `#3b3d42` or stroke `#ae92ff` | chevron rotates; `aria-expanded` | `data-[state=open]` |
 | highlighted (menu row) | `--menu-item-bg-hover` = `surface-hover` via `--color-accent`; selected option = check in `--menu-item-indicator-selected` + `font-medium`, no fill | `#f0f0f3`; check `#8149eb` | `#3b3d42`; check `#c3b0ff` | check glyph or checkbox | Radix `[data-highlighted]`, cmdk `data-[selected=true]` |
@@ -269,7 +304,7 @@ Summary of the 37 changes (18 additions, 14 value changes, 3 deprecated aliases,
 | retire | `--color-action-secondary-cta, --color-action-secondary-cta-hover` | deleted (@theme and .dark) | deleted | Zero consumers once --menu-item-bg-hover moves (verified by grep). |
 | retire | `--color-surface-selected as an info or static fill; ACTIVE_GHOST; dark:bg-input overrides` | static panels -> accent-info-light; one ACTIVE recipe | same | surface-selected becomes a pure state token (F1-34, F8-08, F6-31); F1-04, F1-23, F6-28, F3-26. |
 
-The complete diff against the audited `theme.css` (semantic, component, bridge, dark and base layers, plus the two new focus utilities):
+Fill values in this table and diff are the first draft (brand tint). Use the update block at the top for the neutral values; the structure of the changes (new tokens, aliases, bridge) is unchanged. The complete diff against the audited `theme.css` (semantic, component, bridge, dark and base layers, plus the two new focus utilities):
 
 ```diff
 --- a/frontend/packages/ui/theme.css
@@ -584,7 +619,7 @@ Classify by duration. TRANSIENT (hover, pressed, open, highlight) is neutral: su
 
 These are taste-level choices the model leaves open. Each is a token edit, not a component edit, once the model is in.
 
-1. Selected label colour: the spec puts brand on fill, edge and label (text-selected). If design reads that as three purples on one pill, swap --btn-filter-surface-selected, --tabs-nav-item-surface-selected and --tabs-browsing-item-surface-selected to var(--color-text-primary): a token edit, not a component edit.
+1. Neutral fill strength: light selected is 1.18:1 on white, so the cue carries most of the signal. If it reads too faint, step the light ladder up; the dark ladder was capped by the row border (see the update block).
 2. Whether selected tabs and segments stay inert to hover (as specified, per Radix / Fluent / Carbon) or take a selected-hover rung like pills and rows.
 3. Light selected edge on brand-1000 (= the indicator and the primary CTA fill; 1.19:1 from the brand-900 ring) versus brand-900 (= the ring, separated by shape only): the spec picks brand-1000 so the audit-tokens clause border-selected != border-focus holds in both themes and CR-10 is met literally. If design prefers the lighter edge, delete that clause, write 'offset ring vs inset edge is the separator' into AGENTS.md, and accept one hex for two roles in light. The former decision about the 2.98:1 dark sidebar bar is closed: indicator-selected is brand-700 in dark (3.91:1 on the hovered current fill).
 4. Focus ring hue: keep brand-900 / brand-800 (4.31 / 5.94:1, already tuned) or move to a high-contrast neutral (Fluent, GOV.UK); the inner stroke makes it a one-token swap.

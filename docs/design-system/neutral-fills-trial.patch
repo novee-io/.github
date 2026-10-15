@@ -1,0 +1,145 @@
+diff --git a/frontend/packages/ui/src/novee/components/DataGrid/components/DataGridRow.tsx b/frontend/packages/ui/src/novee/components/DataGrid/components/DataGridRow.tsx
+index 520beff0..2b1da6cd 100644
+--- a/frontend/packages/ui/src/novee/components/DataGrid/components/DataGridRow.tsx
++++ b/frontend/packages/ui/src/novee/components/DataGrid/components/DataGridRow.tsx
+@@ -163,7 +163,8 @@ function DataGridRowImpl<TData>({
+         "group/row flex items-stretch border-b border-border-primary",
+         buildDelay !== undefined && "animate-row-build-in",
+         "bg-bg-primary transition-colors duration-150",
+-        "hover:bg-table-row-hover data-[selected]:bg-table-row-hover",
++        "hover:bg-table-row-hover data-[selected]:bg-table-row-selected data-[selected]:hover:bg-table-row-selected-hover",
++        "relative data-[selected]:before:absolute data-[selected]:before:inset-y-0 data-[selected]:before:left-0 data-[selected]:before:z-10 data-[selected]:before:w-0.5 data-[selected]:before:bg-indicator-selected",
+         "has-[[data-state=open]]:bg-table-row-hover focus-within:bg-table-row-hover",
+         onRowClick && "cursor-pointer",
+       )}
+diff --git a/frontend/packages/ui/src/novee/components/InfoBanner/InfoBanner.tsx b/frontend/packages/ui/src/novee/components/InfoBanner/InfoBanner.tsx
+index a152c4e4..2869738b 100644
+--- a/frontend/packages/ui/src/novee/components/InfoBanner/InfoBanner.tsx
++++ b/frontend/packages/ui/src/novee/components/InfoBanner/InfoBanner.tsx
+@@ -18,7 +18,7 @@ type VariantConfig = {
+ const variantConfig: Record<BannerVariant, VariantConfig> = {
+   info: {
+     // Figma color/surface/selected
+-    containerClass: "bg-surface-selected",
++    containerClass: "bg-accent-info-light",
+     icon: "circle-info",
+     iconClass: "text-category-surface-brand",
+   },
+diff --git a/frontend/packages/ui/src/shadcn/components/ui/sidebar.tsx b/frontend/packages/ui/src/shadcn/components/ui/sidebar.tsx
+index c111c36c..722b392a 100644
+--- a/frontend/packages/ui/src/shadcn/components/ui/sidebar.tsx
++++ b/frontend/packages/ui/src/shadcn/components/ui/sidebar.tsx
+@@ -480,7 +480,7 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
+ }
+ 
+ const sidebarMenuButtonVariants = cva(
+-  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
++  "peer/menu-button relative flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-pressed active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-selected data-[active=true]:hover:bg-sidebar-selected-hover data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[active=true]:before:absolute data-[active=true]:before:inset-y-1.5 data-[active=true]:before:left-0 data-[active=true]:before:w-0.5 data-[active=true]:before:rounded-full data-[active=true]:before:bg-sidebar-indicator data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+   {
+     variants: {
+       variant: {
+diff --git a/frontend/packages/ui/theme.css b/frontend/packages/ui/theme.css
+index 7f28f9f2..db1411a9 100644
+--- a/frontend/packages/ui/theme.css
++++ b/frontend/packages/ui/theme.css
+@@ -247,15 +247,21 @@
+      1.08:1 and invisible; 400 lands at 1.16:1 on secondary, 1.22:1 on primary),
+      dark takes one past the ground. */
+   --color-surface-sunken: var(--color-slate-400);
+-  /* Brand hover triad, subtle → strong. Anything that tints on hover picks one of
+-     these rather than a raw brand-200/300/400, which are near-white tints and
+-     have no dark counterpart. */
+-  --color-surface-hover: var(--color-brand-300);
+-  --color-surface-hover-subtle: var(--color-brand-200);
+-  --color-surface-hover-strong: var(--color-brand-400);
++  /* Interaction fills are NEUTRAL: ink mixed into the ground, one step per state. Purple is spent on the cue
++     (bar, check, edge) and the focus ring, never on a hover or selected fill. Two grounds, two ladders. */
++  --color-surface-hover-subtle: color-mix(in srgb, var(--color-slate-1000) 2%, var(--color-slate-100));
++  --color-surface-hover: color-mix(in srgb, var(--color-slate-1000) 4%, var(--color-slate-100));
++  --color-surface-hover-strong: color-mix(in srgb, var(--color-slate-1000) 6%, var(--color-slate-100));
+   --color-surface-emphasis: var(--color-slate-300);
+   --color-surface-disabled: var(--color-slate-600);
+-  --color-surface-selected: var(--color-brand-300);
++  --color-surface-selected: color-mix(in srgb, var(--color-slate-1000) 9%, var(--color-slate-100));
++  --color-surface-selected-hover: color-mix(in srgb, var(--color-slate-1000) 12%, var(--color-slate-100));
++  --color-surface-pressed: color-mix(in srgb, var(--color-slate-1000) 17%, var(--color-slate-100));
++  --color-surface-secondary-hover: color-mix(in srgb, var(--color-slate-1000) 4%, var(--color-slate-200));
++  --color-surface-secondary-selected: color-mix(in srgb, var(--color-slate-1000) 8%, var(--color-slate-200));
++  --color-surface-secondary-selected-hover: color-mix(in srgb, var(--color-slate-1000) 11%, var(--color-slate-200));
++  --color-surface-secondary-pressed: color-mix(in srgb, var(--color-slate-1000) 14%, var(--color-slate-200));
++  --color-indicator-selected: var(--color-brand-1000);
+ 
+   /* Shadow ink. Semantic, not a primitive, so `.dark` can deepen it: a shadow
+      built on slate-1000 is the same color as the dark page and disappears
+@@ -307,7 +313,8 @@
+   --color-accent-danger: var(--color-red-500);
+   --color-accent-warning: var(--color-amber-500);
+   /* Soft tint surfaces for banners/alerts — Figma color/accent/{danger,warning,success} light.
+-     Info banners use --color-surface-selected (Figma color/surface/selected). */
++     Info banners use --color-accent-info-light. */
++  --color-accent-info-light: var(--color-brand-300);
+   --color-accent-danger-light: var(--color-red-200);
+   --color-accent-warning-light: var(--color-amber-200);
+   --color-accent-success-light: var(--color-green-200);
+@@ -440,6 +447,8 @@
+   --table-header-radius: var(--radius-rounded-xs);
+   --table-row-bg: var(--color-bg-primary);
+   --table-row-bg-hover: var(--color-surface-hover);
++  --table-row-bg-selected: var(--color-surface-selected);
++  --table-row-bg-selected-hover: var(--color-surface-selected-hover);
+   --table-head-column-bg-hover: var(--color-surface-secondary);
+   --table-row-surface: var(--color-text-primary);
+   --table-row-border: var(--color-border-primary);
+@@ -458,8 +467,12 @@
+   --nav-side-bg: var(--color-bg-secondary);
+   --nav-side-border: var(--color-border-primary);
+   --nav-item-bg: var(--color-bg-secondary);
+-  --nav-item-bg-hover: var(--color-surface-hover);
++  --nav-item-bg-hover: var(--color-surface-secondary-hover);
+   --nav-item-bg-active: var(--color-surface-tertiary);
++  --nav-item-bg-current: var(--color-surface-secondary-selected);
++  --nav-item-bg-current-hover: var(--color-surface-secondary-selected-hover);
++  --nav-item-bg-pressed: var(--color-surface-secondary-pressed);
++  --nav-item-indicator-current: var(--color-indicator-selected);
+   --nav-item-surface: var(--color-text-primary);
+ 
+   /* ── Tooltip ── */
+@@ -602,9 +615,15 @@
+   --color-sidebar-primary-foreground: var(--btn-primary-surface);
+   --color-sidebar-accent: var(--nav-item-bg-hover);
+   --color-sidebar-accent-foreground: var(--nav-item-surface);
++  --color-sidebar-selected: var(--nav-item-bg-current);
++  --color-sidebar-selected-hover: var(--nav-item-bg-current-hover);
++  --color-sidebar-pressed: var(--nav-item-bg-pressed);
++  --color-sidebar-indicator: var(--nav-item-indicator-current);
+   --color-sidebar-border: var(--nav-side-border);
+   --color-sidebar-ring: var(--input-border-active);
+   --color-table-row-hover: var(--table-row-bg-hover);
++  --color-table-row-selected: var(--table-row-bg-selected);
++  --color-table-row-selected-hover: var(--table-row-bg-selected-hover);
+   --color-table-head-column-hover: var(--table-head-column-bg-hover);
+   --radius-btn-secondary: var(--btn-secondary-radius);
+ }
+@@ -681,10 +700,18 @@
+      collapsing a distinction light keeps (slate-300 vs slate-200) — a neutral pill,
+      ghost-active state or tab hover on a secondary surface measured 1.00:1. */
+   --color-surface-emphasis: var(--color-slate-850);
+-  --color-surface-hover: var(--color-brand-dark-300);
+-  --color-surface-hover-subtle: var(--color-brand-dark-200);
+-  --color-surface-hover-strong: var(--color-brand-dark-400);
+-  --color-surface-selected: var(--color-brand-dark-300);
++  --color-surface-hover-subtle: color-mix(in srgb, var(--color-slate-100) 4%, var(--color-slate-1000));
++  --color-surface-hover: color-mix(in srgb, var(--color-slate-100) 6%, var(--color-slate-1000));
++  --color-surface-hover-strong: color-mix(in srgb, var(--color-slate-100) 10%, var(--color-slate-1000));
++  --color-surface-selected: color-mix(in srgb, var(--color-slate-100) 16%, var(--color-slate-1000));
++  --color-surface-selected-hover: color-mix(in srgb, var(--color-slate-100) 20%, var(--color-slate-1000));
++  --color-surface-pressed: color-mix(in srgb, var(--color-slate-100) 25%, var(--color-slate-1000));
++  --color-surface-secondary-hover: color-mix(in srgb, var(--color-slate-100) 12%, var(--color-slate-950));
++  --color-surface-secondary-selected: color-mix(in srgb, var(--color-slate-100) 17%, var(--color-slate-950));
++  --color-surface-secondary-selected-hover: color-mix(in srgb, var(--color-slate-100) 22%, var(--color-slate-950));
++  --color-surface-secondary-pressed: color-mix(in srgb, var(--color-slate-100) 28%, var(--color-slate-950));
++  --color-indicator-selected: var(--color-brand-700);
++  --color-accent-info-light: var(--color-brand-dark-200);
+   --color-surface-disabled: var(--color-slate-900);
+ 
+   /* Both built on slate-1100, not slate-1000: the page and the modal on top of it
