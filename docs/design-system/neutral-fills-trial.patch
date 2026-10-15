@@ -39,7 +39,7 @@ index c111c36c..722b392a 100644
      variants: {
        variant: {
 diff --git a/frontend/packages/ui/theme.css b/frontend/packages/ui/theme.css
-index 7f28f9f2..db1411a9 100644
+index 7f28f9f2..dd61bbf3 100644
 --- a/frontend/packages/ui/theme.css
 +++ b/frontend/packages/ui/theme.css
 @@ -247,15 +247,21 @@
@@ -54,19 +54,19 @@ index 7f28f9f2..db1411a9 100644
 -  --color-surface-hover-strong: var(--color-brand-400);
 +  /* Interaction fills are NEUTRAL: ink mixed into the ground, one step per state. Purple is spent on the cue
 +     (bar, check, edge) and the focus ring, never on a hover or selected fill. Two grounds, two ladders. */
-+  --color-surface-hover-subtle: color-mix(in srgb, var(--color-slate-1000) 2%, var(--color-slate-100));
-+  --color-surface-hover: color-mix(in srgb, var(--color-slate-1000) 4%, var(--color-slate-100));
-+  --color-surface-hover-strong: color-mix(in srgb, var(--color-slate-1000) 6%, var(--color-slate-100));
++  --color-surface-hover-subtle: color-mix(in srgb, var(--color-slate-1000) 1.5%, var(--color-slate-100));
++  --color-surface-hover: color-mix(in srgb, var(--color-slate-1000) 3%, var(--color-slate-100));
++  --color-surface-hover-strong: color-mix(in srgb, var(--color-slate-1000) 5%, var(--color-slate-100));
    --color-surface-emphasis: var(--color-slate-300);
    --color-surface-disabled: var(--color-slate-600);
 -  --color-surface-selected: var(--color-brand-300);
-+  --color-surface-selected: color-mix(in srgb, var(--color-slate-1000) 9%, var(--color-slate-100));
-+  --color-surface-selected-hover: color-mix(in srgb, var(--color-slate-1000) 12%, var(--color-slate-100));
-+  --color-surface-pressed: color-mix(in srgb, var(--color-slate-1000) 17%, var(--color-slate-100));
-+  --color-surface-secondary-hover: color-mix(in srgb, var(--color-slate-1000) 4%, var(--color-slate-200));
-+  --color-surface-secondary-selected: color-mix(in srgb, var(--color-slate-1000) 8%, var(--color-slate-200));
-+  --color-surface-secondary-selected-hover: color-mix(in srgb, var(--color-slate-1000) 11%, var(--color-slate-200));
-+  --color-surface-secondary-pressed: color-mix(in srgb, var(--color-slate-1000) 14%, var(--color-slate-200));
++  --color-surface-selected: color-mix(in srgb, var(--color-slate-1000) 6.5%, var(--color-slate-100));
++  --color-surface-selected-hover: color-mix(in srgb, var(--color-slate-1000) 9%, var(--color-slate-100));
++  --color-surface-pressed: color-mix(in srgb, var(--color-slate-1000) 13%, var(--color-slate-100));
++  --color-surface-secondary-hover: color-mix(in srgb, var(--color-slate-1000) 3%, var(--color-slate-200));
++  --color-surface-secondary-selected: color-mix(in srgb, var(--color-slate-1000) 6%, var(--color-slate-200));
++  --color-surface-secondary-selected-hover: color-mix(in srgb, var(--color-slate-1000) 8.5%, var(--color-slate-200));
++  --color-surface-secondary-pressed: color-mix(in srgb, var(--color-slate-1000) 11%, var(--color-slate-200));
 +  --color-indicator-selected: var(--color-brand-1000);
  
    /* Shadow ink. Semantic, not a primitive, so `.dark` can deepen it: a shadow
@@ -129,11 +129,11 @@ index 7f28f9f2..db1411a9 100644
 -  --color-surface-hover-strong: var(--color-brand-dark-400);
 -  --color-surface-selected: var(--color-brand-dark-300);
 +  --color-surface-hover-subtle: color-mix(in srgb, var(--color-slate-100) 4%, var(--color-slate-1000));
-+  --color-surface-hover: color-mix(in srgb, var(--color-slate-100) 6%, var(--color-slate-1000));
-+  --color-surface-hover-strong: color-mix(in srgb, var(--color-slate-100) 10%, var(--color-slate-1000));
-+  --color-surface-selected: color-mix(in srgb, var(--color-slate-100) 16%, var(--color-slate-1000));
-+  --color-surface-selected-hover: color-mix(in srgb, var(--color-slate-100) 20%, var(--color-slate-1000));
-+  --color-surface-pressed: color-mix(in srgb, var(--color-slate-100) 25%, var(--color-slate-1000));
++  --color-surface-hover: color-mix(in srgb, var(--color-slate-100) 7%, var(--color-slate-1000));
++  --color-surface-hover-strong: color-mix(in srgb, var(--color-slate-100) 11%, var(--color-slate-1000));
++  --color-surface-selected: color-mix(in srgb, var(--color-slate-100) 18%, var(--color-slate-1000));
++  --color-surface-selected-hover: color-mix(in srgb, var(--color-slate-100) 22%, var(--color-slate-1000));
++  --color-surface-pressed: color-mix(in srgb, var(--color-slate-100) 27%, var(--color-slate-1000));
 +  --color-surface-secondary-hover: color-mix(in srgb, var(--color-slate-100) 12%, var(--color-slate-950));
 +  --color-surface-secondary-selected: color-mix(in srgb, var(--color-slate-100) 17%, var(--color-slate-950));
 +  --color-surface-secondary-selected-hover: color-mix(in srgb, var(--color-slate-100) 22%, var(--color-slate-950));
