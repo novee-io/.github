@@ -1,5 +1,5 @@
 diff --git a/frontend/packages/ui/src/novee/components/DataGrid/components/DataGridRow.tsx b/frontend/packages/ui/src/novee/components/DataGrid/components/DataGridRow.tsx
-index 520beff0..2b1da6cd 100644
+index 520beff0..29ff93f3 100644
 --- a/frontend/packages/ui/src/novee/components/DataGrid/components/DataGridRow.tsx
 +++ b/frontend/packages/ui/src/novee/components/DataGrid/components/DataGridRow.tsx
 @@ -163,7 +163,8 @@ function DataGridRowImpl<TData>({
@@ -8,7 +8,7 @@ index 520beff0..2b1da6cd 100644
          "bg-bg-primary transition-colors duration-150",
 -        "hover:bg-table-row-hover data-[selected]:bg-table-row-hover",
 +        "hover:bg-table-row-hover data-[selected]:bg-table-row-selected data-[selected]:hover:bg-table-row-selected-hover",
-+        "relative data-[selected]:before:absolute data-[selected]:before:inset-y-0 data-[selected]:before:left-0 data-[selected]:before:z-10 data-[selected]:before:w-0.5 data-[selected]:before:bg-indicator-selected",
++        "relative data-[selected]:before:absolute data-[selected]:before:inset-y-0 data-[selected]:before:left-0 data-[selected]:before:z-50 data-[selected]:before:w-0.5 data-[selected]:before:pointer-events-none data-[selected]:before:bg-indicator-selected",
          "has-[[data-state=open]]:bg-table-row-hover focus-within:bg-table-row-hover",
          onRowClick && "cursor-pointer",
        )}
